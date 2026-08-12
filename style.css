@@ -2031,6 +2031,86 @@
   gap: 10px;
   margin-bottom: 4px;
 }
+.we-signal-del {
+  cursor: pointer;
+  color: var(--we-text3);
+  font-size: 11px;
+  padding: 2px 4px;
+  border-radius: 4px;
+  flex-shrink: 0;
+}
+.we-signal-del:hover { color: var(--we-danger, #e05555); background: rgba(224,85,85,0.1); }
+
+/* ===== 资产账本（记账员）面板 ===== */
+.we-assets-wrap { display: flex; flex-direction: column; gap: 8px; }
+.we-assets-ledger-line {
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  font-size: 12px; color: var(--we-text2); padding: 6px 10px;
+  background: var(--we-bg); border: 1px solid var(--we-border); border-radius: 8px;
+}
+.we-assets-settled { color: var(--we-text2); }
+.we-assets-gap { color: var(--we-gold); font-size: 11px; }
+.we-assets-round { font-size: 10px; color: var(--we-text3); background: rgba(122,138,154,0.12); padding: 1px 8px; border-radius: 999px; }
+.we-assets-overview { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 6px; }
+.we-assets-ov-item {
+  background: var(--we-bg); border: 1px solid var(--we-border); border-radius: 8px;
+  padding: 6px 10px; display: flex; flex-direction: column; gap: 3px;
+}
+.we-assets-ov-k { font-size: 10px; color: var(--we-gold); }
+.we-assets-ov-v { font-size: 12px; color: var(--we-text); overflow-wrap: break-word; word-break: break-word; }
+.we-assets-entries { display: flex; flex-direction: column; gap: 4px; }
+.we-assets-entry {
+  font-size: 12px; padding: 6px 10px; background: var(--we-bg);
+  border: 1px solid var(--we-border); border-radius: 8px;
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+}
+.we-assets-entry-cat { flex-shrink: 0; }
+.we-assets-entry-name { color: var(--we-text); font-weight: 500; }
+.we-assets-entry-amount { color: var(--we-gold); }
+.we-assets-entry-change { color: var(--we-blue); font-size: 11px; }
+.we-assets-entry-note { color: var(--we-text3); font-size: 11px; flex-basis: 100%; margin-left: 0; }
+.we-assets-major-title, .we-offsight-title { font-size: 11px; color: var(--we-text2); margin: 4px 0; }
+.we-assets-major-item {
+  font-size: 12px; padding: 5px 10px; margin: 3px 0;
+  background: rgba(208,170,88,0.06); border: 1px solid rgba(208,170,88,0.22);
+  border-radius: 8px; display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap;
+}
+.we-assets-major-round { font-size: 10px; color: var(--we-gold); flex-shrink: 0; }
+.we-assets-major-name { color: var(--we-text); }
+.we-assets-major-desc { color: var(--we-text3); font-size: 11px; flex-basis: 100%; }
+
+/* ===== 角色幕后推演面板 ===== */
+.we-offsight-wrap { display: flex; flex-direction: column; gap: 8px; }
+.we-offsight-update {
+  font-size: 12px; padding: 6px 10px; background: var(--we-bg);
+  border: 1px solid var(--we-border); border-radius: 8px;
+  display: flex; gap: 8px; align-items: baseline;
+}
+.we-offsight-update-round { font-size: 10px; color: var(--we-blue); flex-shrink: 0; }
+.we-offsight-update-char { color: var(--we-text); font-weight: 500; flex-shrink: 0; }
+.we-offsight-update-activity { color: var(--we-text2); }
+.we-offsight-char {
+  font-size: 12px; padding: 7px 10px; background: var(--we-bg);
+  border: 1px solid var(--we-border); border-radius: 8px;
+  display: flex; flex-direction: column; gap: 3px;
+}
+.we-offsight-char-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.we-offsight-char-name { color: var(--we-text); font-weight: 600; }
+.we-offsight-char-loc { color: var(--we-text3); font-size: 11px; }
+.we-offsight-char-activity { color: var(--we-text2); }
+.we-offsight-char-goal { color: var(--we-text3); font-size: 11px; }
+.we-offsight-circle {
+  font-size: 12px; padding: 7px 10px; margin: 3px 0;
+  background: var(--we-bg); border: 1px solid var(--we-border); border-radius: 8px;
+  display: flex; flex-direction: column; gap: 3px;
+}
+.we-offsight-circle-head { display: flex; align-items: center; gap: 8px; }
+.we-offsight-circle-name { color: var(--we-text); font-weight: 600; }
+.we-offsight-circle-members { color: var(--we-text2); }
+.we-offsight-circle-meta { color: var(--we-text3); font-size: 11px; }
+.we-offsight-circle-cur { color: var(--we-blue); font-size: 11px; }
+
+/* ===== 分页列表箭头 ===== */
 .we-list-arrow {
   cursor: pointer;
   color: var(--we-text2);
@@ -3857,6 +3937,10 @@
   --we-section-enemies: #8e302f;
   --we-section-economy: #78570d;
   --we-section-blackbox: #574a72;
+  /* 浅色底对比度修正：墨玉的 --we-blue #70a8d2 在浅底上仅约 2.4:1，
+     资产/幕后新样式的 10-11px 小字改用深色值（--we-purple 同理加深）。 */
+  --we-blue: #2f6f9e;
+  --we-purple: #7a5ac8;
 }
 
 :root[data-we-theme="sakura"] {
@@ -3870,6 +3954,9 @@
   --we-section-enemies: #923740;
   --we-section-economy: #765313;
   --we-section-blackbox: #5d496d;
+  /* 浅色底对比度修正：同 paper，见上。 */
+  --we-blue: #2f6f9e;
+  --we-purple: #7a5ac8;
 }
 
 /* 浅色主题不能直接使用事件链为深色底设计的银白等级色。

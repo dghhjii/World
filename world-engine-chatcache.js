@@ -627,7 +627,8 @@ window.WORLD_ENGINE_CHATCACHE = (function() {
     // 本监听器在各引擎监听器之前注册，切聊天时先恢复所有已知 scope。
     const ctx = getCtx();
     if (ctx?.eventSource?.on) {
-      const eventName = ctx.event_types?.CHAT_LOADED || 'chat_loaded';
+      // [1.14.0 兼容] 1.14.0 无 CHAT_LOADED，切聊天 emit CHAT_CHANGED('chat_id_changed')；兼容链同 world-engine.js
+      const eventName = ctx.event_types?.CHAT_CHANGED || ctx.event_types?.CHAT_LOADED || 'chat_id_changed';
       const guard = window.WORLD_ENGINE_GUARD_EVENT;
       const handler = typeof guard === 'function'
         ? guard('共用缓存', '聊天加载', onChatLoaded)

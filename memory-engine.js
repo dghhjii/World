@@ -1963,7 +1963,7 @@ window.MEMORY_ENGINE = (function() {
     const ctx = context(), types = ctx?.event_types || {};
     if (ctx?.eventSource) {
       ctx.eventSource.on(types.GENERATION_ENDED || types.MESSAGE_RECEIVED || 'message_received', guardEvent('生成完成', onMessageReceived));
-      ctx.eventSource.on(types.CHAT_LOADED || 'chat_loaded', guardEvent('聊天加载', () => {
+      ctx.eventSource.on(types.CHAT_CHANGED || types.CHAT_LOADED || 'chat_id_changed', guardEvent('聊天加载', () => {
         clearTimeout(autoTimer);
         abortController?.abort();
         lastEventKey = '';

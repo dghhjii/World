@@ -37,7 +37,9 @@
     'world-engine-api.js',
     'world-engine-worldbook.js',
     'world-engine-chatcache.js',
-    'world-engine-inject-inspector.js'
+    'world-engine-inject-inspector.js',
+    'world-engine-assets.js',
+    'world-engine-offsight.js'
   ];
   const SHARED_CONTRACTS = {
     WORLD_ENGINE_STORE: ['hydrate', 'getItem', 'setItem'],
@@ -45,7 +47,9 @@
     WORLD_ENGINE_API: ['callApi'],
     WORLD_ENGINE_WORLDBOOK: ['buildPromptSection'],
     WORLD_ENGINE_CHATCACHE: ['init'],
-    WORLD_ENGINE_INJECT_INSPECTOR: ['init']
+    WORLD_ENGINE_INJECT_INSPECTOR: ['init'],
+    WORLD_ENGINE_ASSETS: ['buildPromptSection', 'mergeUpdate', 'buildContextSection'],
+    WORLD_ENGINE_OFFSIGHT: ['buildPromptSection', 'mergeUpdate', 'buildContextSection']
   };
 
   // 引擎地位并列，按注册顺序加载；世界引擎只是在发生取舍时拥有最高启动优先级。
@@ -691,7 +695,7 @@
         if (evolution && evolution.isRunning && evolution.isRunning()) {
           try { evolution.abort(); console.log('[世界引擎] 切聊天，中止进行中的推演/回填'); } catch (e) { console.warn('[世界引擎] 中止推演失败', e); }
         }
-        // 共用 ChatCache 独立监听 CHAT_LOADED，并在各引擎回调之前完成 scope 恢复。
+        // 共用 ChatCache 独立监听切聊天事件（1.14.0 为 CHAT_CHANGED/chat_id_changed，旧版为 CHAT_LOADED/chat_loaded），并在各引擎回调之前完成 scope 恢复。
         const ctx = SillyTavern.getContext();
         const chat = ctx?.chat || [];
         const currentLayer = core.getChatLayer();
@@ -759,7 +763,9 @@
         const guard = window.WORLD_ENGINE_GUARD_EVENT;
         const autoEvolveEvent = ctx.event_types?.GENERATION_ENDED || ctx.event_types?.MESSAGE_RECEIVED || 'message_received';
         ctx.eventSource.on(autoEvolveEvent, guard('世界引擎', '生成完成', onMessageReceived));
-        ctx.eventSource.on(ctx.event_types?.CHAT_LOADED || 'chat_loaded', guard('世界引擎', '聊天加载', onChatLoaded));
+        // [1.14.0 兼容] 酒馆 1.14.0 已移除 CHAT_LOADED，切聊天 emit 的是 CHAT_CHANGED('chat_id_changed')；
+        // 兼容链：新酒馆 CHAT_CHANGED → 旧酒馆 CHAT_LOADED → 兜底字符串。emit 时机已确认在聊天数组加载渲染完成后。
+        ctx.eventSource.on(ctx.event_types?.CHAT_CHANGED || ctx.event_types?.CHAT_LOADED || 'chat_id_changed', guard('世界引擎', '聊天加载', onChatLoaded));
         ctx.eventSource.on(ctx.event_types?.MESSAGE_SWIPED || 'message_swiped', guard('世界引擎', '滑动重生成', onMessageSwiped));
         ctx.eventSource.on(ctx.event_types?.GENERATION_STARTED || 'generation_started', guard('世界引擎', '生成开始', onGenerationStarted));
         console.log('[世界引擎] 事件绑定成功，自动推演事件:', autoEvolveEvent);

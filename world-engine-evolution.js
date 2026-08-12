@@ -928,6 +928,20 @@ ${JSON.stringify(sample || [], null, 2)}
       // 可选跨引擎上下文必须故障隔离：记忆引擎异常不能中断世界推演。
       console.error('[世界引擎] 读取记忆引擎上下文失败（已隔离）', error);
     }
+    // 资产账本段：记账员约束（默认关闭，零行为改变）
+    let assetsSection = '';
+    try {
+      assetsSection = window.WORLD_ENGINE_ASSETS?.buildPromptSection?.(state) || '';
+    } catch (error) {
+      console.error('[世界引擎] 读取资产账本上下文失败（已隔离）', error);
+    }
+    // 角色幕后推演段：不在场角色 + 社交圈（默认关闭，零行为改变）
+    let offsightSection = '';
+    try {
+      offsightSection = window.WORLD_ENGINE_OFFSIGHT?.buildPromptSection?.(state) || '';
+    } catch (error) {
+      console.error('[世界引擎] 读取幕后推演上下文失败（已隔离）', error);
+    }
     const tonePrompt = ((api.getSettings ? api.getSettings() : {}).tonePrompt || '').trim();
     const toneSection = tonePrompt
       ? `\n\n========== 附加提示词（用户自定义 · 优先遵守 · 但不得违反上述输出 JSON 格式）==========\n${tonePrompt}`
@@ -955,7 +969,18 @@ ${JSON.stringify(sample || [], null, 2)}
   economy: state.economy,
   enemies: state.enemies || [],
   influenceChain: state.influenceChain || [],
-  blackbox: state.blackbox || { secretActions: [], secretAssets: [] }
+  blackbox: state.blackbox || { secretActions: [], secretAssets: [] },
+  // ===== 摘要字段（v3.1.0 起附加，防状态块膨胀：entries 仅 count+最近 5 条 name/amount；characters 全量但只取关键字段）=====
+  assets: {
+    count: (state.assets && Array.isArray(state.assets.entries)) ? state.assets.entries.length : 0,
+    lastSettledRound: (state.assets && Number(state.assets.lastSettledRound)) || 0,
+    overview: (state.assets && state.assets.overview) || { assets: '', distribution: '', production: '', funds: '' },
+    recentEntries: ((state.assets && state.assets.entries) || []).slice(-5).map(e => ({ name: e && e.name, amount: e && e.amount }))
+  },
+  offscreen: {
+    characters: ((state.offscreen && state.offscreen.characters) || []).map(c => c && ({ name: c.name, lastSeenRound: c.lastSeenRound, location: c.location, activity: c.activity })),
+    socialCircles: (state.socialCircles || []).map(sc => sc && ({ name: sc.name, type: sc.type, members: sc.members, currentActivity: sc.currentActivity }))
+  }
 }, null, 2)}`;
 
     const segDialogue = `## 近期对话\n${dialogueText ? dialogueText : `用户：${userMsg || ''}\nAI：${aiMsg || ''}`}`;
@@ -970,6 +995,8 @@ ${JSON.stringify(sample || [], null, 2)}
       + '\n\n========== 世界推演规则 ==========\n' + fullRules
       + '\n\n' + worldbookSection
       + (memoryEngineSection ? '\n\n' + memoryEngineSection : '')
+      + (assetsSection ? '\n\n' + assetsSection : '')
+      + (offsightSection ? '\n\n' + offsightSection : '')
       + '\n\n' + segStateBlock
       + '\n\n' + segDialogue
       + '\n\n' + segOutputInstructions
@@ -985,6 +1012,8 @@ ${JSON.stringify(sample || [], null, 2)}
       { key: 'rules',          label: '④ 世界推演规则',            content: fullRules },
       { key: 'worldbook',      label: '⑤ 世界书注入',              content: worldbookSection },
       { key: 'memory-engine',  label: '⑤b 记忆引擎人物/实体注入',   content: memoryEngineSection },
+      { key: 'assets',         label: '⑤c 资产账本（记账员）',      content: assetsSection },
+      { key: 'offsight',       label: '⑤d 角色幕后推演',           content: offsightSection },
       { key: 'state',          label: '⑥ 当前世界状态（JSON）',     content: segStateBlock },
       { key: 'dialogue',       label: '⑦ 近期对话',                content: segDialogue },
       { key: 'output-format',  label: '⑧ JSON 输出字段说明',       content: segOutputInstructions },
@@ -997,7 +1026,8 @@ ${JSON.stringify(sample || [], null, 2)}
     _lastRawResult = '';
     const knownFields = [
       'events', 'factions', 'worldTrends', 'winds', 'economy', 'reputation',
-      'world_digest', 'enemies', 'influenceChain', 'regionalIncident', 'blackbox'
+      'world_digest', 'enemies', 'influenceChain', 'regionalIncident', 'blackbox',
+      'assets', 'offscreen', 'socialCircles'
     ];
     const retrySettings = api.getSettings ? api.getSettings() : {};
     const maxRetries = Math.max(0, parseInt(retrySettings.apiAutoRetries) || 0);
@@ -1321,6 +1351,25 @@ ${JSON.stringify(sample || [], null, 2)}
       } else {
         const label = (mode === 'redo') ? 'redo' : '自动重roll';
         console.log('[世界引擎] ✅ 推演完成（' + label + '），轮次不变：第', state.round, '轮');
+      }
+
+      // 资产账本合并（默认关闭；开启时 API 返回 assets 字段）
+      // 必须放在轮次块之后：模块内按 state.round 落账（lastSettledRound/entries[].round/majorEvents[].round），
+      // 先 round++ 再合并才能盖上本轮轮号；此前在轮次块前合并会恒少算 1 轮（结算门禁错位）。
+      // 模块内 saveState 由各自模块的脏检查控制；本轮最终落盘由下方 saveStateWithLayer 统一执行。
+      try {
+        window.WORLD_ENGINE_ASSETS?.mergeUpdate?.(state, update);
+      } catch (error) {
+        console.error('[世界引擎] 资产账本合并失败（已隔离）', error);
+      }
+
+      // 角色幕后推演合并（默认关闭；开启时 API 返回 offscreen/socialCircles）
+      // 同上：合并必须在轮次推进之后；模块内 saveState 由各自模块的脏检查控制，
+      // 本轮最终落盘由下方 saveStateWithLayer 统一执行。
+      try {
+        window.WORLD_ENGINE_OFFSIGHT?.mergeUpdate?.(state, update);
+      } catch (error) {
+        console.error('[世界引擎] 幕后推演合并失败（已隔离）', error);
       }
       core.saveStateWithLayer(state);
       return true;

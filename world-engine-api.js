@@ -42,6 +42,17 @@ window.WORLD_ENGINE_API = (function() {
       backfillBatchSize: 5,    // 每批 AI 楼层数（每多少层调一次推演）
       backfillRetries: 2,      // 每批独立重试次数（推演失败时重试上限）
       backfillEndLayer: 0,     // 结束 AI 楼层（0 = 推到最后一个 AI 楼层）
+      // ===== 资产账本设置 =====
+      assetLedgerEnabled: false,   // 总开关：对话后推演资产/产业/势力账目（默认关闭=零行为改变）
+      assetCategories: '产业,资产,资金,势力', // 账目类别（逗号分隔，供记账 prompt 约束）
+      assetMajorThresholdHours: 24,   // 重大结算门禁：距上次完整结算超过 N 轮才完整记账（键名 Hours 为历史遗留，实为轮数）
+      assetEntryCap: 40,          // 账目条目上限
+      assetMajorEventCap: 12,     // 重大结算事件记录上限
+      // ===== 角色幕后推演设置 =====
+      offscreenEnabled: false,    // 总开关：推演不在场角色动态与社交圈（默认关闭=零行为改变）
+      offscreenCharacterCap: 8,   // 幕后角色档案上限
+      offscreenUpdateCap: 16,     // 后台动态日志上限
+      socialCircleCap: 6,         // 社交圈上限
       evolveEveryX: 1,
       evolveReadRounds: 1,
       manualReadRounds: 1,

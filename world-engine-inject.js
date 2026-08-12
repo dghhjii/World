@@ -191,6 +191,25 @@ window.WORLD_ENGINE_INJECT = (function() {
     }
     const blackboxText = boxParts.length ? boxParts.join(' | ') : '无未公开信息';
 
+    // 资产账本概览（默认关闭；开启时注入账目摘要）
+    let assetsText = '';
+    try {
+      assetsText = window.WORLD_ENGINE_ASSETS?.buildContextSection?.(worldState) || '';
+    } catch (error) {
+      console.error('[世界引擎] 资产账本注入失败（已隔离）', error);
+    }
+    // 长度保护：资产/幕后是新增段，context 从尾部截断时不能让它们挤占既有的摘要/动态/规则内容。
+    assetsText = assetsText.substring(0, 800);
+    // 角色幕后动态（默认关闭；开启时注入最近后台动态）
+    let offsightText = '';
+    try {
+      offsightText = window.WORLD_ENGINE_OFFSIGHT?.buildContextSection?.(worldState) || '';
+    } catch (error) {
+      console.error('[世界引擎] 幕后推演注入失败（已隔离）', error);
+    }
+    // 长度保护：同上，单段上限 800 字符。
+    offsightText = offsightText.substring(0, 800);
+
     const context = `
 【世界信息】
 更新轮次：${worldState.round}
@@ -204,7 +223,8 @@ window.WORLD_ENGINE_INJECT = (function() {
 经济：${econText}
 区域动态：${riText}
 未公开信息：${blackboxText}
-
+${assetsText}
+${offsightText}
 ${rulesSummary}
     `.trim();
 

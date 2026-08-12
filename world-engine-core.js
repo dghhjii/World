@@ -77,6 +77,29 @@ window.WORLD_ENGINE_CORE = (function() {
         secretActions: [],
         secretAssets: []
       },
+      // ===== 资产账本（来自主人的资产账本体系）=====
+      assets: {
+        enabled: true, // 死字段（历史遗留）：全库无人读取，实际开关是设置项 assetLedgerEnabled；保留仅因旧存档兼容与测试断言
+        ledgerTime: {
+          settledAt: '',       // 上次结算账目的故事时间文本（如「澳宋-1638年-09月-02日」）
+          gap: ''              // 距上次结算的经过时间描述（门禁依据）
+        },
+        overview: {
+          assets: '',          // 宏观资产概览
+          distribution: '',    // 资产分布
+          production: '',      // 生产效率统计
+          funds: ''            // 可动用资金/流动资金概览
+        },
+        entries: [],           // 账目条目 [{category,name,amount,change,note,round}]
+        majorEvents: [],       // 重大结算事件记录 [{round,title,desc}]
+        lastSettledRound: 0
+      },
+      // ===== 角色幕后推演（不在场角色 + 社交圈）=====
+      offscreen: {
+        characters: [],        // [{id,name,lastSeenRound,location,activity,goal,mood}]
+        updates: []            // 后台动态日志 [{round,character,activity}]
+      },
+      socialCircles: [],       // [{name,type,members,interactions,infoScope,currentActivity,description}]
       lastEvolveResult: null,
       lastInjection: null,
       lastUpdated: {}
@@ -329,6 +352,31 @@ window.WORLD_ENGINE_CORE = (function() {
       state.blackbox.secretActions = state.blackbox.secretActions || [];
       state.blackbox.secretAssets = state.blackbox.secretAssets || [];
     }
+    // ===== 资产账本迁移/修复 =====
+    if (!state.assets || typeof state.assets !== 'object') {
+      state.assets = { enabled: true, ledgerTime: { settledAt: '', gap: '' }, overview: { assets: '', distribution: '', production: '', funds: '' }, entries: [], majorEvents: [], lastSettledRound: 0 };
+    }
+    // 死字段兼容行：enabled 全库无人读取（实际开关为设置项 assetLedgerEnabled），
+    // 保留该行仅保证旧存档残留字段被归一化为 true，删除会导致 test-assets-offsight 的迁移断言失效。
+    state.assets.enabled = state.assets.enabled !== false; // 死字段（历史遗留）：实际开关为设置项 assetLedgerEnabled，此处仅保持兼容不初始化新值
+    if (!state.assets.ledgerTime || typeof state.assets.ledgerTime !== 'object') state.assets.ledgerTime = { settledAt: '', gap: '' };
+    if (!state.assets.ledgerTime.settledAt) state.assets.ledgerTime.settledAt = '';
+    if (!state.assets.ledgerTime.gap) state.assets.ledgerTime.gap = '';
+    if (!state.assets.overview || typeof state.assets.overview !== 'object') state.assets.overview = {};
+    state.assets.overview.assets = state.assets.overview.assets || '';
+    state.assets.overview.distribution = state.assets.overview.distribution || '';
+    state.assets.overview.production = state.assets.overview.production || '';
+    state.assets.overview.funds = state.assets.overview.funds || '';
+    state.assets.entries = Array.isArray(state.assets.entries) ? state.assets.entries : [];
+    state.assets.majorEvents = Array.isArray(state.assets.majorEvents) ? state.assets.majorEvents : [];
+    if (!state.assets.lastSettledRound) state.assets.lastSettledRound = 0;
+    // ===== 角色幕后推演迁移/修复 =====
+    if (!state.offscreen || typeof state.offscreen !== 'object') {
+      state.offscreen = { characters: [], updates: [] };
+    }
+    state.offscreen.characters = Array.isArray(state.offscreen.characters) ? state.offscreen.characters : [];
+    state.offscreen.updates = Array.isArray(state.offscreen.updates) ? state.offscreen.updates : [];
+    state.socialCircles = Array.isArray(state.socialCircles) ? state.socialCircles : [];
     state.lastInjection = state.lastInjection || null;
     return state;
   }

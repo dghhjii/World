@@ -1191,7 +1191,7 @@ window.WORLD_ENGINE_UI = (function() {
           <label>模型</label>
           <input type="text" id="we-model" value="${u(settings.model || 'gpt-3.5-turbo')}" placeholder="模型名称" style="width:100%;">
         </div>
-        <button class="we-btn" id="we-fetch-models" style="white-space:nowrap;flex-shrink:0;">获取列表</button>
+        <button class="we-btn" id="we-fetch-models" style="white-space:nowrap;flex-shrink:0;" title="先保存当前表单，再请求模型列表验证连接">获取列表 / 测试连接</button>
       </div>
       <div class="we-input-group">
         <select id="we-model-list" style="display:none;width:100%;margin-top:4px;"><option value="">-- 选择模型 --</option></select>
@@ -1887,6 +1887,8 @@ window.WORLD_ENGINE_UI = (function() {
       + renderSection('仇敌录', 'enemies', renderEnemies(s.enemies, scope))
       + renderSection('经济', 'economy', renderEconomy(s.economy, scope))
       + renderSection('秘密', 'blackbox', renderBlackbox(s.blackbox, scope))
+      + renderSection('资产账本', 'assets-section', renderAssetsSection(s, scope))
+      + renderSection('幕后推演', 'offsight-section', renderOffsightSection(s, scope))
       + renderSection('事件账本', 'ledger', renderLedger(s.memories));
   }
 
@@ -1906,7 +1908,9 @@ window.WORLD_ENGINE_UI = (function() {
         + renderSection('仇敌录', 'enemies', renderEnemies(s.enemies, scope));
     } else if (viewKey === 'resources') {
       content = renderSection('经济', 'economy', renderEconomy(s.economy, scope))
-        + renderSection('秘密', 'blackbox', renderBlackbox(s.blackbox, scope));
+        + renderSection('秘密', 'blackbox', renderBlackbox(s.blackbox, scope))
+        + renderSection('资产账本', 'assets-section', renderAssetsSection(s, scope))
+        + renderSection('幕后推演', 'offsight-section', renderOffsightSection(s, scope));
     }
     return '<div class="we-sub-topbar">'
       + '<button class="we-icon-btn" id="we-btn-back" title="返回"><i class="fa-solid fa-arrow-left"></i></button>'
@@ -1927,6 +1931,7 @@ window.WORLD_ENGINE_UI = (function() {
   //   date    —— 可选，日期不确定的留月份/年份；
   //   items   —— 该版本改动条目（每条一行，渲染时走 h() 转义）。
   const CHANGELOG = [
+    { version: '3.1.0', date: '2026-08-12', items: ['新增「资产账本（记账员）」：对话推演时同步维护资产、产业、势力与资金账目，保留重大结算门禁设计——距上次完整结算不足阈值轮次且无重大结算事件时仅更新结算时间，满阈值或发生大额交易、战损、收购等重大结算事件时完整记账并同步产出风声/事件链。', '新增「角色幕后推演」：推演不在场角色的日程生活、社交与行动，维护幕后角色档案、后台动态日志与社交圈（地缘/业缘/血缘/志缘/利缘五类）；严格遵守感知边界，幕后私密行动不进入风声/声誉/事件链。', '两项新功能均默认关闭，不开启时与旧版行为完全一致（零行为改变）；设置页新增「资产·幕后」选项卡，主页展开模式、资源子视图与存档点视图新增对应区块。', '修复切聊天事件绑定兼容酒馆 1.14.0：1.14.0 已移除 CHAT_LOADED 事件，现改用 CHAT_CHANGED（chat_id_changed），切聊天中止推演、存档恢复与锚点逻辑在 1.14.0 恢复正常。'] },
     { version: '3.0.2', date: '2026-07-19', items: ['放宽事件链的早期创建条件：已有具体迹象的筹划、试探、调查起步或矛盾初现，可以在尚未成熟时进入事件链持续观察。', '放宽风声的传播起点：明确信息主题一旦开始公开发布、被他人听闻或转述、经渠道传递或形成小范围议论，即可创建，不再要求已影响其他持久状态。', '保留事件与风声的归并、去重和合法传播边界，避免放宽准入后产生重复条目或私密信息泄露。'] },
     { version: '3.0.1', date: '2026-07-16', items: ['修复云白、早樱浅色主题下事件链标题与 Lv.2 等级文字接近背景色、难以阅读的问题。', '事件等级、类型、阶段、推演结果、终局印章与倒计时改为浅色主题自适应对比度；深色主题保持原有配色。'] },
     { version: '3.0.0', date: '2026-07-14', items: ['世界引擎进入 3.0 正式版本：继续以独立世界状态推演、分层注入、本地事件机制、可编辑面板与聊天级存档为核心。', '记忆引擎 1.0 正式接入：人物、实体、纪要与总述保持独立数据和故障边界，并可按需向世界推演提供命中的最新人物与实体记忆。', '自动纪要从首次进入聊天时的当前层开始统计新增轮次；历史对话整理仅由纪要与总述批量重填执行。'] },
@@ -1965,6 +1970,7 @@ window.WORLD_ENGINE_UI = (function() {
     { key: 'common',    label: '常用' },
     { key: 'link',      label: '联动' },
     { key: 'advanced',  label: '高级' },
+    { key: 'assets',    label: '资产·幕后' },
     { key: 'mechanics', label: '本地机制' },
     { key: 'archive',   label: '存档' },
     { key: 'worldbook', label: '世界书' },
@@ -2005,6 +2011,7 @@ window.WORLD_ENGINE_UI = (function() {
       common:    form.api + form.evolve + form.inject,
       link:      form.link,
       advanced:  form.retry + form.backfill + form.filter + form.display + extra.tone,
+      assets:    form.assets + form.offsight,
       mechanics: form.mechanics,
       archive:   form.chatcache + extra.data + checkpointSection,
       worldbook: extra.worldbook,
@@ -2085,6 +2092,8 @@ window.WORLD_ENGINE_UI = (function() {
       + renderSection('影响链', 'cp-influence', renderInfluenceChain(s.influenceChain, 'checkpoint'))
       + renderSection('区域事件', 'cp-regional', renderRegionalIncident(s.regionalIncident, 'checkpoint'))
       + renderSection('秘密', 'cp-blackbox', renderBlackbox(s.blackbox, 'checkpoint'))
+      + renderSection('资产账本', 'cp-assets-section', renderAssetsSection(s, 'checkpoint'))
+      + renderSection('幕后推演', 'cp-offsight-section', renderOffsightSection(s, 'checkpoint'))
       + renderSection('事件账本', 'cp-ledger', renderLedger(s.memories));
   }
 
@@ -2582,6 +2591,142 @@ window.WORLD_ENGINE_UI = (function() {
     }).join('') + '</div>';
   }
 
+  // ===== 资产账本（记账员）面板 =====
+  function renderAssetsSection(s, scope) {
+    const assets = s?.assets;
+    if (!assets) {
+      // 空态引导：未开启时指明设置入口；已开启但无数据保留原文案
+      let hint = '暂无资产账本';
+      try {
+        const st = window.WORLD_ENGINE_API?.getSettings ? window.WORLD_ENGINE_API.getSettings() : null;
+        if (st && st.assetLedgerEnabled === false) hint = '未开启：请在 设置 → 资产·幕后 中启用（开启后完成一次推演生成）';
+      } catch (_) {}
+      return '<div class="we-empty">' + hint + '</div>';
+    }
+    const lt = assets.ledgerTime || {};
+    const ov = assets.overview || {};
+    const entries = assets.entries || [];
+    const majorEvents = assets.majorEvents || [];
+
+    let html = '<div class="we-assets-wrap">';
+    // 结算信息行
+    html += '<div class="we-assets-ledger-line">'
+      + '<span class="we-badge" style="background:var(--we-gold,#d0aa58);">💰 资产账本</span>'
+      + '<span class="we-assets-settled">上次结算：' + u(lt.settledAt || '尚未结算') + '</span>'
+      + (lt.gap ? '<span class="we-assets-gap">' + u(lt.gap) + '</span>' : '')
+      + (assets.lastSettledRound ? '<span class="we-assets-round">第' + u(assets.lastSettledRound) + '轮</span>' : '')
+      + '</div>';
+    // 概览四格
+    const overviewItems = [
+      ['宏观概览', ov.assets],
+      ['资产分布', ov.distribution],
+      ['生产效率', ov.production],
+      ['可用资金', ov.funds]
+    ];
+    const hasOverview = overviewItems.some(([, v]) => v);
+    if (hasOverview) {
+      html += '<div class="we-assets-overview">'
+        + overviewItems.filter(([, v]) => v).map(([k, v]) =>
+          '<div class="we-assets-ov-item"><div class="we-assets-ov-k">' + k + '</div><div class="we-assets-ov-v">' + u(v) + '</div></div>'
+        ).join('')
+        + '</div>';
+    }
+    // 账目条目
+    if (entries.length) {
+      html += '<div class="we-assets-entries">' + renderPagedList(entries, 'assets-entries', (e, i) =>
+        '<div class="we-assets-entry">'
+        + '<span class="we-badge we-assets-entry-cat" style="background:var(--we-purple,#aa8bc9);font-size:10px;">' + u(e.category || '其他') + '</span>'
+        + '<span class="we-assets-entry-name">' + u(e.name) + '</span>'
+        + '<span class="we-assets-entry-amount">' + u(e.amount || '未知') + '</span>'
+        + '<span class="we-assets-entry-change">' + u(e.change || '持平') + '</span>'
+        + (e.note ? '<span class="we-assets-entry-note">' + u(e.note) + '</span>' : '')
+        + '</div>'
+      ) + '</div>';
+    } else {
+      html += '<div class="we-empty" style="margin-top:4px;">暂无账目条目（开启「资产账本」并完成一次推演后生成）</div>';
+    }
+    // 重大结算事件
+    if (majorEvents.length) {
+      html += '<div class="we-assets-major"><div class="we-assets-major-title">⚡ 重大结算事件</div>'
+        + majorEvents.slice(0, 6).map(m =>
+          '<div class="we-assets-major-item"><span class="we-assets-major-round">第' + u(m.round) + '轮</span>'
+          + '<span class="we-assets-major-name">' + u(m.title) + '</span>'
+          + (m.desc ? '<span class="we-assets-major-desc">' + u(m.desc) + '</span>' : '')
+          + '</div>'
+        ).join('')
+        + '</div>';
+    }
+    html += '</div>';
+    return html;
+  }
+
+  // ===== 角色幕后推演面板 =====
+  function renderOffsightSection(s, scope) {
+    const offscreen = s?.offscreen;
+    if (!offscreen) {
+      // 空态引导：未开启时指明设置入口；已开启但无数据保留原文案
+      let hint = '暂无幕后推演数据';
+      try {
+        const st = window.WORLD_ENGINE_API?.getSettings ? window.WORLD_ENGINE_API.getSettings() : null;
+        if (st && st.offscreenEnabled === false) hint = '未开启：请在 设置 → 资产·幕后 中启用（开启后完成一次推演生成）';
+      } catch (_) {}
+      return '<div class="we-empty">' + hint + '</div>';
+    }
+    const chars = offscreen.characters || [];
+    const updates = offscreen.updates || [];
+    const circles = s?.socialCircles || [];
+
+    let html = '<div class="we-offsight-wrap">';
+
+    // 最近后台动态（置顶，最有信息量）
+    if (updates.length) {
+      html += '<div class="we-offsight-updates"><div class="we-offsight-title">🎭 最近后台动态</div>'
+        + updates.slice(0, 5).map(u2 =>
+          '<div class="we-offsight-update"><span class="we-offsight-update-round">第' + u(u2.round) + '轮</span>'
+          + '<span class="we-offsight-update-char">' + u(u2.character) + '</span>'
+          + '<span class="we-offsight-update-activity">' + u(u2.activity) + '</span></div>'
+        ).join('')
+        + '</div>';
+    } else {
+      html += '<div class="we-empty" style="margin-top:4px;">暂无后台动态（开启「角色幕后推演」并完成一次推演后生成）</div>';
+    }
+
+    // 幕后角色档案
+    if (chars.length) {
+      html += '<div class="we-offsight-chars"><div class="we-offsight-title">👤 幕后角色档案</div>'
+        + renderPagedList(chars, 'offsight-chars', (c, i) =>
+          '<div class="we-offsight-char">'
+          + '<div class="we-offsight-char-head"><span class="we-offsight-char-name">' + u(c.name) + '</span>'
+          + (c.location ? '<span class="we-offsight-char-loc">📍 ' + u(c.location) + '</span>' : '')
+          + (c.mood ? '<span class="we-badge" style="background:var(--we-blue,#58b8a9);font-size:10px;">' + u(c.mood) + '</span>' : '')
+          + '</div>'
+          + (c.activity ? '<div class="we-offsight-char-activity">' + u(c.activity) + '</div>' : '')
+          + (c.goal ? '<div class="we-offsight-char-goal">目标：' + u(c.goal) + '</div>' : '')
+          + '</div>'
+        )
+        + '</div>';
+    }
+
+    // 社交圈
+    if (circles.length) {
+      html += '<div class="we-offsight-circles"><div class="we-offsight-title">🕸️ 社交圈</div>'
+        + circles.map(c => {
+          const typeColor = { '地缘': '#58b8a9', '业缘': '#7c5cff', '血缘': '#e05555', '志缘': '#d0aa58', '利缘': '#3ecf8e' }[c.type] || '#7a8a9a';
+          return '<div class="we-offsight-circle">'
+            + '<div class="we-offsight-circle-head"><span class="we-offsight-circle-name">' + u(c.name) + '</span>'
+            + '<span class="we-badge" style="background:' + typeColor + ';font-size:10px;">' + u(c.type || '地缘') + '</span></div>'
+            + (c.members?.length ? '<div class="we-offsight-circle-members">成员：' + u(c.members.join('、')) + '</div>' : '')
+            + (c.interactions ? '<div class="we-offsight-circle-meta">互动：' + u(c.interactions) + '</div>' : '')
+            + (c.infoScope ? '<div class="we-offsight-circle-meta">信息范围：' + u(c.infoScope) + '</div>' : '')
+            + (c.currentActivity ? '<div class="we-offsight-circle-cur">当前动态：' + u(c.currentActivity) + '</div>' : '')
+            + '</div>';
+        }).join('')
+        + '</div>';
+    }
+    html += '</div>';
+    return html;
+  }
+
   function renderEconomy(econ, scope) {
     if (!econ) return '<div class="we-empty">暂无经济数据</div>';
     const sc = scope || 'state';
@@ -2626,7 +2771,7 @@ window.WORLD_ENGINE_UI = (function() {
       const editHtml = isEditing ? renderEnemyEditor(en, enemyIndex, scope) : '';
       return `<div class="we-blood-item">
         ${actionHtml}
-        <div class="we-blood-title">${u(en.name)} <span class="we-badge we-badge-danger">${en.status||'追踪中'}</span><span class="we-badge" style="background:var(--we-purple);font-size:10px;">${en.type==='blood'?'血仇':'恩怨'}</span></div>
+        <div class="we-blood-title">${u(en.name)} <span class="we-badge we-badge-danger">${en.status||'追踪中'}</span><span class="we-badge" style="background:var(--we-purple,#aa8bc9);font-size:10px;">${en.type==='blood'?'血仇':'恩怨'}</span></div>
         <div class="we-blood-meta">原因: ${u(en.reason||'?')}</div>
         ${editHtml}
       </div>`;
@@ -3480,7 +3625,7 @@ window.WORLD_ENGINE_UI = (function() {
           <label>模型</label>
           <input type="text" id="we-model" value="${u(settings.model||'gpt-3.5-turbo')}" placeholder="模型名称" style="width:100%;">
         </div>
-        <button class="we-btn" id="we-fetch-models" style="white-space:nowrap;flex-shrink:0;">获取列表</button>
+        <button class="we-btn" id="we-fetch-models" style="white-space:nowrap;flex-shrink:0;" title="先保存当前表单，再请求模型列表验证连接">获取列表 / 测试连接</button>
       </div>
       <div class="we-input-group">
         <select id="we-model-list" style="display:none;width:100%;margin-top:4px;">
@@ -3849,6 +3994,53 @@ window.WORLD_ENGINE_UI = (function() {
         </div>
       </div>`;
 
+    // ===== 资产账本（记账员）=====
+    const assetsBody = `
+      <div style="font-size:12px;color:var(--we-text2);line-height:1.6;margin-bottom:10px;">
+        对话推演时同步维护{{user}}的资产、产业、势力与资金账目。账目随世界状态保存在本聊天，重大结算事件会同步产出风声/事件链。<b>默认关闭</b>，开启后推演 prompt 与正文注入会附加账目信息。
+      </div>
+      <div class="we-input-group">
+        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
+          <input type="checkbox" id="we-asset-ledger-enabled" ${settings.assetLedgerEnabled === true ? 'checked' : ''}>
+          启用资产账本
+        </label>
+      </div>
+      <div class="we-input-group">
+        <label>账目类别（逗号分隔）</label>
+        <input type="text" id="we-asset-categories" value="${u(tv('assetCategories', '产业,资产,资金,势力'))}" placeholder="产业,资产,资金,势力">
+        <div style="font-size:11px;color:var(--we-text3);margin-top:3px;">记账员只记录这些类别的动态，不记录个人随身物品、技能与零用收支。</div>
+      </div>
+      <div class="we-input-group">
+        <label>完整结算门禁（轮）</label>
+        <input type="number" id="we-asset-major-threshold" min="1" step="1" value="${tv('assetMajorThresholdHours', 24)}">
+        <div style="font-size:11px;color:var(--we-text3);margin-top:3px;">距上次完整结算不足该轮数、且本轮无重大结算事件（大额交易/开张/战损/收购/迁入迁出/投资理财/获得新资产等）时，只更新结算时间，不重写账目——省 token 又保连续性。</div>
+      </div>
+      <div class="we-input-group" style="display:flex;gap:6px;">
+        <div style="flex:1;"><label>账目条目上限</label><input type="number" id="we-asset-entry-cap" min="1" step="1" value="${tv('assetEntryCap', 40)}" style="width:100%;"></div>
+        <div style="flex:1;"><label>重大事件记录上限</label><input type="number" id="we-asset-major-cap" min="1" step="1" value="${tv('assetMajorEventCap', 12)}" style="width:100%;"></div>
+      </div>`;
+
+    // ===== 角色幕后推演（不在场角色 + 社交圈）=====
+    const offsightBody = `
+      <div style="font-size:12px;color:var(--we-text2);line-height:1.6;margin-bottom:10px;">
+        推演不在{{user}}视线内的角色：他们按自己的日程生活、社交、行动。维护「幕后角色档案 + 后台动态日志 + 社交圈」三块状态，供正文注入与面板查看。<b>默认关闭</b>，开启后推演 prompt 与正文注入会附加幕后动态。
+      </div>
+      <div class="we-input-group">
+        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
+          <input type="checkbox" id="we-offsight-enabled" ${settings.offscreenEnabled === true ? 'checked' : ''}>
+          启用角色幕后推演
+        </label>
+      </div>
+      <div class="we-input-group" style="display:flex;gap:6px;">
+        <div style="flex:1;"><label>幕后角色上限</label><input type="number" id="we-offsight-char-cap" min="1" step="1" value="${tv('offscreenCharacterCap', 8)}" style="width:100%;"></div>
+        <div style="flex:1;"><label>后台动态日志上限</label><input type="number" id="we-offsight-update-cap" min="1" step="1" value="${tv('offscreenUpdateCap', 16)}" style="width:100%;"></div>
+      </div>
+      <div class="we-input-group">
+        <label>社交圈上限</label>
+        <input type="number" id="we-social-circle-cap" min="1" step="1" value="${tv('socialCircleCap', 6)}" style="width:100%;">
+        <div style="font-size:11px;color:var(--we-text3);margin-top:3px;">社交圈类型：地缘（同住一地）/业缘（同职业组织）/血缘（家族亲缘）/志缘（共同志向）/利缘（利益联盟）。只保留真实存在互动与信息流通的圈子。</div>
+      </div>`;
+
     return {
       api: sec('set-api', 'API 配置', apiBody),
       evolve: sec('set-evolve', '推演模式', evolveBody),
@@ -3864,6 +4056,8 @@ window.WORLD_ENGINE_UI = (function() {
       display: sec('set-display', '界面显示', displayBody),
       chatcache: sec('set-chatcache', '酒馆缓存与存档', chatcacheBody),
       inject: sec('set-inject', '正文注入', injectBody),
+      assets: sec('set-assets', '资产账本（记账员）', assetsBody),
+      offsight: sec('set-offsight', '角色幕后推演', offsightBody),
       link: sec('set-world-memory-link', '世界 → 记忆', linkBody)
     };
   }
@@ -5146,7 +5340,18 @@ window.WORLD_ENGINE_UI = (function() {
           localWindSentimentBase: Math.min(95, Math.max(0, parseFloat(gv('we-local-wind-sentiment-base')) || 0)),
           localWindSentimentGrace: Math.max(0, parseInt(gv('we-local-wind-sentiment-grace')) || 0),
           localWindSentimentLinear: Math.max(0, parseFloat(gv('we-local-wind-sentiment-linear')) || 0),
-          localWindSentimentQuadratic: Math.max(0, parseFloat(gv('we-local-wind-sentiment-quadratic')) || 0)
+          localWindSentimentQuadratic: Math.max(0, parseFloat(gv('we-local-wind-sentiment-quadratic')) || 0),
+          // 资产账本
+          assetLedgerEnabled: document.getElementById('we-asset-ledger-enabled')?.checked === true,
+          assetCategories: gv('we-asset-categories') || '产业,资产,资金,势力',
+          assetMajorThresholdHours: Math.max(1, parseInt(gv('we-asset-major-threshold')) || 24),
+          assetEntryCap: Math.max(1, parseInt(gv('we-asset-entry-cap')) || 40),
+          assetMajorEventCap: Math.max(1, parseInt(gv('we-asset-major-cap')) || 12),
+          // 角色幕后推演
+          offscreenEnabled: document.getElementById('we-offsight-enabled')?.checked === true,
+          offscreenCharacterCap: Math.max(1, parseInt(gv('we-offsight-char-cap')) || 8),
+          offscreenUpdateCap: Math.max(1, parseInt(gv('we-offsight-update-cap')) || 16),
+          socialCircleCap: Math.max(1, parseInt(gv('we-social-circle-cap')) || 6)
         };
         // a 不得超过 X（每次推演的轮数）
         ns.evolveReadRounds = Math.min(ns.evolveReadRounds, ns.evolveEveryX);
@@ -5506,12 +5711,12 @@ window.WORLD_ENGINE_UI = (function() {
               if (modelInput) modelInput.value = select.value;
             };
           }
-          showToast('获取到 ' + models.length + ' 个模型');
+          showToast('连接成功，获取到 ' + models.length + ' 个模型');
         } catch(e) {
-          showToast('' + e.message, true);
+          showToast('连接失败：' + e.message, true);
         }
         fetchBtn.disabled = false;
-        fetchBtn.innerHTML = '获取列表';
+        fetchBtn.innerHTML = '获取列表 / 测试连接';
       };
     }
 
