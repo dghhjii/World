@@ -2116,6 +2116,120 @@
 .we-offsight-circle-meta { color: var(--we-text3); font-size: 11px; }
 .we-offsight-circle-cur { color: var(--we-blue); font-size: 11px; }
 
+/* ===== 资产账本 v5.8 卡片化布局（新增，保留上方旧类） ===== */
+.we-assets-statusbar {
+  display: flex; align-items: center; gap: 4px 8px; flex-wrap: wrap;
+  font-size: 11px; color: var(--we-text2); line-height: 1.6;
+  padding: 6px 10px; background: var(--we-bg);
+  border: 1px solid var(--we-border); border-radius: 8px;
+}
+.we-assets-status-item { white-space: nowrap; }
+.we-assets-status-item + .we-assets-status-item::before {
+  content: ''; display: inline-block; width: 3px; height: 3px; border-radius: 50%;
+  background: var(--we-text3); margin-right: 8px; vertical-align: middle;
+}
+.we-assets-grid {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 6px;
+}
+.we-assets-grid-card {
+  background: var(--we-bg); border: 1px solid var(--we-border); border-radius: 8px;
+  padding: 7px 10px; display: flex; flex-direction: column; gap: 4px; min-width: 0;
+}
+.we-assets-grid-k { font-size: 10px; color: var(--we-text3); letter-spacing: 0.5px; }
+.we-assets-grid-v { font-size: 12px; color: var(--we-text); overflow-wrap: break-word; word-break: break-word; line-height: 1.5; }
+
+/* 账目条目表格化：类别 | 名称 | 数值 | 变化 | 备注 */
+.we-assets-entry-row {
+  display: grid;
+  grid-template-columns: 60px minmax(0, 1.3fr) minmax(0, 1fr) minmax(0, 0.9fr) minmax(0, 1.2fr);
+  gap: 8px; align-items: center;
+  font-size: 12px; padding: 6px 10px;
+  background: var(--we-bg); border: 1px solid var(--we-border); border-radius: 8px;
+  min-width: 0;
+}
+.we-assets-entry-row > * { min-width: 0; }
+.we-assets-entry-cat {
+  font-size: 10px; color: var(--we-text2); text-align: center;
+  background: rgba(122,138,154,0.12); border-radius: 999px; padding: 1px 6px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.we-assets-entry-name { color: var(--we-text); font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.we-assets-entry-amount { color: var(--we-gold); text-align: right; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.we-assets-entry-change { font-size: 11px; text-align: right; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.we-assets-change-up { color: var(--we-success, #4caf50); font-weight: 600; }
+.we-assets-change-down { color: var(--we-danger, #e05c5c); font-weight: 600; }
+.we-assets-entry-note { color: var(--we-text3); font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+
+/* 结构化区块折叠卡（data-we-seg-toggle 委托切换） */
+.we-assets-fold { margin: 2px 0; background: var(--we-bg); border: 1px solid var(--we-border); border-radius: 8px; overflow: hidden; }
+.we-assets-fold-head {
+  display: flex; align-items: center; gap: 6px; cursor: pointer;
+  padding: 6px 10px; font-size: 12px; user-select: none;
+}
+.we-assets-fold-head:hover { background: var(--we-bg2); }
+.we-assets-fold-label { color: var(--we-text); font-weight: 500; flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.we-assets-fold-meta { color: var(--we-text3); font-size: 10px; flex-shrink: 0; }
+.we-assets-fold-body { padding: 0 8px 8px 8px; }
+.we-assets-fold-item {
+  font-size: 12px; padding: 5px 10px; margin-top: 3px;
+  background: rgba(122,138,154,0.06); border: 1px solid rgba(122,138,154,0.14); border-radius: 6px;
+  color: var(--we-text); overflow-wrap: break-word; word-break: break-word; line-height: 1.5;
+}
+.we-assets-closure-pass { color: var(--we-success, #4caf50); font-weight: 600; }
+.we-assets-closure-fail { color: var(--we-danger, #e05c5c); font-weight: 600; }
+
+/* 重大结算事件时间线：竖线 + 圆点 + 轮次 + 标题 + 简述 */
+.we-assets-timeline-title { font-size: 11px; color: var(--we-text2); margin: 6px 0 4px; }
+.we-assets-timeline, .we-offsight-timeline { position: relative; padding-left: 16px; }
+.we-assets-timeline::before, .we-offsight-timeline::before {
+  content: ''; position: absolute; left: 5px; top: 4px; bottom: 4px; width: 2px;
+  background: linear-gradient(to bottom, var(--we-gold), rgba(208,170,88,0.15)); border-radius: 2px;
+}
+.we-assets-timeline-item, .we-offsight-timeline-item { position: relative; padding: 0 0 8px 10px; }
+.we-assets-timeline-item:last-child, .we-offsight-timeline-item:last-child { padding-bottom: 2px; }
+.we-assets-timeline-dot, .we-offsight-timeline-dot {
+  position: absolute; left: -14px; top: 3px; width: 8px; height: 8px; border-radius: 50%;
+  background: var(--we-gold); box-shadow: 0 0 6px rgba(208,170,88,0.6);
+}
+.we-assets-timeline-body {
+  font-size: 12px; padding: 5px 10px; background: var(--we-bg);
+  border: 1px solid var(--we-border); border-radius: 8px;
+  display: flex; flex-direction: column; gap: 2px;
+}
+.we-assets-timeline-round { font-size: 10px; color: var(--we-gold); }
+.we-assets-timeline-name { color: var(--we-text); font-weight: 500; }
+.we-assets-timeline-desc { color: var(--we-text3); font-size: 11px; line-height: 1.5; }
+
+/* ===== 角色幕后推演 v5.8 卡片化布局（新增，保留上方旧类） ===== */
+.we-offsight-timeline::before {
+  background: linear-gradient(to bottom, var(--we-blue), rgba(112,168,210,0.15));
+}
+.we-offsight-timeline-dot { background: var(--we-blue); box-shadow: 0 0 6px rgba(112,168,210,0.6); }
+.we-offsight-timeline-body {
+  font-size: 12px; padding: 5px 10px; background: var(--we-bg);
+  border: 1px solid var(--we-border); border-radius: 8px;
+  display: flex; flex-direction: column; gap: 2px; min-width: 0;
+}
+.we-offsight-timeline-head { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+.we-offsight-timeline-round { font-size: 10px; color: var(--we-blue); flex-shrink: 0; }
+.we-offsight-timeline-char { color: var(--we-text); font-weight: 600; }
+.we-offsight-timeline-activity { color: var(--we-text2); line-height: 1.5; }
+.we-offsight-timeline-meta { color: var(--we-text3); font-size: 11px; line-height: 1.5; }
+
+/* 角色 mood 色点/色标 */
+.we-offsight-char-mood {
+  display: inline-flex; align-items: center; gap: 4px;
+  font-size: 10px; color: var(--we-text2);
+  background: rgba(122,138,154,0.12); border-radius: 999px; padding: 1px 8px;
+}
+.we-offsight-mood-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+
+/* 社交圈网络：圈子卡片 + 成员 + 活跃角色 + 关联圈 */
+.we-offsight-circles { display: flex; flex-direction: column; gap: 6px; }
+.we-offsight-circles .we-offsight-circle { margin: 0; }
+.we-offsight-circle-active { color: var(--we-accent, #58b8a9); font-size: 11px; line-height: 1.5; }
+.we-offsight-circle-links { color: var(--we-blue, #70a8d2); font-size: 11px; line-height: 1.5; }
+
 /* ===== 分页列表箭头 ===== */
 .we-list-arrow {
   cursor: pointer;

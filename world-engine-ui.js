@@ -2592,14 +2592,23 @@ window.WORLD_ENGINE_UI = (function() {
   }
 
   // ===== 资产账本（记账员）面板 =====
+  /** 账目变化正负判定：+ 开头 → 涨（绿），- 开头 → 跌（红） */
+  function assetsChangeClass(v) {
+    const s = String(v || '');
+    if (s.indexOf('+') === 0) return ' we-assets-change-up';
+    if (s.indexOf('-') === 0) return ' we-assets-change-down';
+    return '';
+  }
+
+  // ===== 资产账本面板 =====
   function renderAssetsSection(s, scope) {
     const assets = s?.assets;
     if (!assets) {
       // 空态引导：未开启时指明设置入口；已开启但无数据保留原文案
-      let hint = '暂无资产账本';
+      let hint = '暂无账目，推演后自动生成';
       try {
         const st = window.WORLD_ENGINE_API?.getSettings ? window.WORLD_ENGINE_API.getSettings() : null;
-        if (st && st.assetLedgerEnabled === false) hint = '未开启：请在 设置 → 资产·幕后 中启用（开启后完成一次推演生成）';
+        if (st && st.assetLedgerEnabled === false) hint = '在 设置 → 资产·幕后 启用资产账本';
       } catch (_) {}
       return '<div class="we-empty">' + hint + '</div>';
     }
@@ -2607,16 +2616,23 @@ window.WORLD_ENGINE_UI = (function() {
     const ov = assets.overview || {};
     const entries = assets.entries || [];
     const majorEvents = assets.majorEvents || [];
+    // 距今 N 轮：当前轮 - 上次结算轮（两者均可解析时）
+    const curRound = Number(s?.round);
+    const lastRound = Number(assets.lastSettledRound);
+    const gapRounds = (Number.isFinite(curRound) && Number.isFinite(lastRound) && curRound >= lastRound)
+      ? curRound - lastRound : null;
 
     let html = '<div class="we-assets-wrap">';
-    // 结算信息行
-    html += '<div class="we-assets-ledger-line">'
-      + '<span class="we-badge" style="background:var(--we-gold,#d0aa58);">💰 资产账本</span>'
-      + '<span class="we-assets-settled">上次结算：' + u(lt.settledAt || '尚未结算') + '</span>'
-      + (lt.gap ? '<span class="we-assets-gap">' + u(lt.gap) + '</span>' : '')
-      + (assets.lastSettledRound ? '<span class="we-assets-round">第' + u(assets.lastSettledRound) + '轮</span>' : '')
+    // 1. 顶部状态条：上次结算 + 距今轮数 + 账目条数 + 重大事件数
+    html += '<div class="we-assets-statusbar">'
+      + '<span class="we-assets-status-item">⏱ 上次结算：' + u(lt.settledAt || '尚未结算') + '</span>'
+      + (gapRounds !== null
+        ? '<span class="we-assets-status-item">距今 ' + gapRounds + ' 轮</span>'
+        : (lt.gap ? '<span class="we-assets-status-item">' + u(lt.gap) + '</span>' : ''))
+      + '<span class="we-assets-status-item">账目 ' + entries.length + ' 条</span>'
+      + '<span class="we-assets-status-item">重大事件 ' + majorEvents.length + ' 件</span>'
       + '</div>';
-    // 概览四格
+    // 2. 概览四格卡片（assets/distribution/production/funds）
     const overviewItems = [
       ['宏观概览', ov.assets],
       ['资产分布', ov.distribution],
@@ -2625,52 +2641,70 @@ window.WORLD_ENGINE_UI = (function() {
     ];
     const hasOverview = overviewItems.some(([, v]) => v);
     if (hasOverview) {
-      html += '<div class="we-assets-overview">'
-        + overviewItems.filter(([, v]) => v).map(([k, v]) =>
-          '<div class="we-assets-ov-item"><div class="we-assets-ov-k">' + k + '</div><div class="we-assets-ov-v">' + u(v) + '</div></div>'
+      html += '<div class="we-assets-grid">'
+        + overviewItems.map(([k, v]) =>
+          '<div class="we-assets-grid-card"><div class="we-assets-grid-k">' + k + '</div>'
+          + '<div class="we-assets-grid-v">' + (v ? u(v) : '暂无') + '</div></div>'
         ).join('')
         + '</div>';
     }
-    // 账目条目
+    // 3. 账目条目表格化（类别 | 名称 | 数值 | 变化 | 备注），数值右对齐、变化正绿负红、备注单行省略
     if (entries.length) {
       html += '<div class="we-assets-entries">' + renderPagedList(entries, 'assets-entries', (e, i) =>
-        '<div class="we-assets-entry">'
-        + '<span class="we-badge we-assets-entry-cat" style="background:var(--we-purple,#aa8bc9);font-size:10px;">' + u(e.category || '其他') + '</span>'
+        '<div class="we-assets-entry-row">'
+        + '<span class="we-assets-entry-cat">' + u(e.category || '其他') + '</span>'
         + '<span class="we-assets-entry-name">' + u(e.name) + '</span>'
         + '<span class="we-assets-entry-amount">' + u(e.amount || '未知') + '</span>'
-        + '<span class="we-assets-entry-change">' + u(e.change || '持平') + '</span>'
-        + (e.note ? '<span class="we-assets-entry-note">' + u(e.note) + '</span>' : '')
+        + '<span class="we-assets-entry-change' + assetsChangeClass(e.change) + '">' + u(e.change || '持平') + '</span>'
+        + '<span class="we-assets-entry-note">' + u(e.note || '') + '</span>'
         + '</div>'
       ) + '</div>';
     } else {
-      html += '<div class="we-empty" style="margin-top:4px;">暂无账目条目（开启「资产账本」并完成一次推演后生成）</div>';
-    }
-    // 重大结算事件
-    if (majorEvents.length) {
-      html += '<div class="we-assets-major"><div class="we-assets-major-title">⚡ 重大结算事件</div>'
-        + majorEvents.slice(0, 6).map(m =>
-          '<div class="we-assets-major-item"><span class="we-assets-major-round">第' + u(m.round) + '轮</span>'
-          + '<span class="we-assets-major-name">' + u(m.title) + '</span>'
-          + (m.desc ? '<span class="we-assets-major-desc">' + u(m.desc) + '</span>' : '')
-          + '</div>'
-        ).join('')
-        + '</div>';
+      html += '<div class="we-empty" style="margin-top:4px;">暂无账目，推演后自动生成</div>';
     }
 
     // ===== v5.7 结构化账本展示 =====
+    // pass 判定对齐 merge 侧 isPassTrue（旧存档可能存字符串 'false'/'true'，纯 truthy 会误判 ✓）
+    const isPass = v => v === true || v === 1 || ['true', 'pass', '是', '1', '通过'].includes(String(v).trim().toLowerCase());
+    const passMark = x => isPass(x.pass) ? ' <span class="we-assets-closure-pass">✓</span>' : ' <span class="we-assets-closure-fail">✗</span>';
     const structSections = [
       ['外因', assets.externalFactors, x => u(x.name) + (x.desc ? '：' + u(x.desc) : '')],
       ['内因', assets.internalFactors, x => u(x.name) + (x.desc ? '：' + u(x.desc) : '')],
-      ['流动资产', assets.liquidAssets, x => u(x.currency) + '：期初' + u(x.opening ?? '0') + ' +流入' + u(x.inflow ?? '0') + ' -流出' + u(x.outflow ?? '0') + (x.exchange ? ' +汇兑' + u(x.exchange) : '') + ' =期末' + u(x.closing ?? '0') + (x.pass ? ' ✓' : ' ✗')],
+      ['流动资产', assets.liquidAssets, x => u(x.currency) + '：期初' + u(x.opening ?? '0') + ' +流入' + u(x.inflow ?? '0') + ' -流出' + u(x.outflow ?? '0') + (x.exchange ? ' +汇兑' + u(x.exchange) : '') + ' =期末' + u(x.closing ?? '0') + passMark(x)],
       ['资产分布', assets.assetDistribution, x => u(x.entity) + (Array.isArray(x.buildings) && x.buildings.length ? '：' + u(x.buildings.join('、')) : '') + (x.status ? '（' + u(x.status) + '）' : '')],
       ['生产效率', assets.productionStats, x => u(x.entity) + (x.building ? '·' + u(x.building) : '') + (x.status ? ' [' + u(x.status) + ']' : '') + (x.input ? ' 投入:' + u(x.input) : '') + (x.output ? ' 产出:' + u(x.output) : '') + (x.quality ? ' 品质:' + u(x.quality) : '') + (x.bottleneck ? ' 瓶颈:' + u(x.bottleneck) : '')],
       ['运营监控', assets.operations, x => u(x.entity) + (x.income ? ' 收入:' + u(x.income) : '') + (x.expense ? ' 支出:' + u(x.expense) : '') + (x.net ? ' 净:' + u(x.net) : '') + (x.reason ? '（' + u(x.reason) + '）' : '')],
-      ['闭环等式', assets.closures, x => u(x.subject) + '：期初' + u(x.opening ?? '0') + ' +' + u(x.inflow ?? '0') + ' -' + u(x.outflow ?? '0') + (x.natural ? ' ±' + u(x.natural) : '') + ' =' + u(x.closing ?? '0') + (x.pass ? ' ✓' : ' ✗')]
+      ['闭环等式', assets.closures, x => u(x.subject) + '：期初' + u(x.opening ?? '0') + ' +' + u(x.inflow ?? '0') + ' -' + u(x.outflow ?? '0') + (x.natural ? ' ±' + u(x.natural) : '') + ' =' + u(x.closing ?? '0') + passMark(x)]
     ];
-    for (const [title, list, fmt] of structSections) {
-      if (!Array.isArray(list) || !list.length) continue;
-      html += '<div class="we-assets-struct"><div class="we-assets-major-title">📋 ' + title + '（共' + list.length + '条）</div>'
-        + list.slice(0, 8).map(x => '<div class="we-assets-struct-item">' + fmt(x) + '</div>').join('')
+    let foldIdx = 0;
+    structSections.forEach(([title, list, fmt]) => {
+      if (!Array.isArray(list) || !list.length) return;
+      const open = foldIdx < 2;
+      foldIdx++;
+      html += '<div class="we-assets-fold">'
+        + '<div class="we-assets-fold-head" data-we-seg-toggle>'
+        + '<span class="we-prompt-seg-arrow">' + (open ? '▼' : '▶') + '</span>'
+        + '<span class="we-assets-fold-label">📋 ' + title + '</span>'
+        + '<span class="we-assets-fold-meta">' + list.length + ' 条</span>'
+        + '</div>'
+        + '<div class="we-assets-fold-body we-prompt-seg-body"' + (open ? '' : ' style="display:none;"') + '>'
+        + list.slice(0, 8).map(x => '<div class="we-assets-fold-item">' + fmt(x) + '</div>').join('')
+        + '</div></div>';
+    });
+
+    // 5. 重大结算事件时间线（竖线 + 圆点 + 轮次标签 + 标题 + 简述）
+    if (majorEvents.length) {
+      html += '<div class="we-assets-timeline-title">⚡ 重大结算事件</div>'
+        + '<div class="we-assets-timeline">'
+        + majorEvents.slice(0, 6).map(m =>
+          '<div class="we-assets-timeline-item">'
+          + '<div class="we-assets-timeline-dot"></div>'
+          + '<div class="we-assets-timeline-body">'
+          + (m.round != null ? '<div class="we-assets-timeline-round">第' + u(m.round) + '轮</div>' : '')
+          + '<div class="we-assets-timeline-name">' + u(m.title) + '</div>'
+          + (m.desc ? '<div class="we-assets-timeline-desc">' + u(m.desc) + '</div>' : '')
+          + '</div></div>'
+        ).join('')
         + '</div>';
     }
     html += '</div>';
@@ -2678,14 +2712,23 @@ window.WORLD_ENGINE_UI = (function() {
   }
 
   // ===== 角色幕后推演面板 =====
+  /** mood 色点颜色：按 mood 字符串哈希取调色板，稳定不闪烁 */
+  function offsightMoodColor(mood) {
+    const palette = ['#58b8a9', '#70a8d2', '#aa8bc9', '#d0aa58', '#3ecf8e', '#e07a5f', '#d98a3d', '#7a8a9a'];
+    const s = String(mood || '');
+    let h = 0;
+    for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0;
+    return palette[h % palette.length];
+  }
+
   function renderOffsightSection(s, scope) {
     const offscreen = s?.offscreen;
     if (!offscreen) {
       // 空态引导：未开启时指明设置入口；已开启但无数据保留原文案
-      let hint = '暂无幕后推演数据';
+      let hint = '暂无幕后推演数据，推演后自动生成';
       try {
         const st = window.WORLD_ENGINE_API?.getSettings ? window.WORLD_ENGINE_API.getSettings() : null;
-        if (st && st.offscreenEnabled === false) hint = '未开启：请在 设置 → 资产·幕后 中启用（开启后完成一次推演生成）';
+        if (st && st.offscreenEnabled === false) hint = '在 设置 → 资产·幕后 启用幕后推演';
       } catch (_) {}
       return '<div class="we-empty">' + hint + '</div>';
     }
@@ -2695,44 +2738,64 @@ window.WORLD_ENGINE_UI = (function() {
 
     let html = '<div class="we-offsight-wrap">';
 
-    // 最近后台动态（置顶，最有信息量）
+    // 1. 幕后角色档案卡片（名字 + 位置 + 动向 + 目标，mood 色点/色标）
+    if (chars.length) {
+      html += '<div class="we-offsight-title">👤 幕后角色档案</div>'
+        + renderPagedList(chars, 'offsight-chars', (c, i) => {
+          const moodColor = offsightMoodColor(c.mood);
+          return '<div class="we-offsight-char">'
+            + '<div class="we-offsight-char-head">'
+            + '<span class="we-offsight-char-name">' + u(c.name) + '</span>'
+            + (c.mood ? '<span class="we-offsight-char-mood"><i class="we-offsight-mood-dot" style="background:' + moodColor + ';box-shadow:0 0 6px ' + moodColor + '88;"></i>' + u(c.mood) + '</span>' : '')
+            + (c.location ? '<span class="we-offsight-char-loc">📍 ' + u(c.location) + '</span>' : '')
+            + '</div>'
+            + (c.activity ? '<div class="we-offsight-char-activity">动向：' + u(c.activity) + '</div>' : '')
+            + (c.goal ? '<div class="we-offsight-char-goal">目标：' + u(c.goal) + '</div>' : '')
+            + '</div>';
+        })
+        + '</div>';
+    }
+
+    // 2. 动态日志时间线（轮次 + 角色 + 动态，goal/mood/location 若有则小字附卡内）
     if (updates.length) {
-      html += '<div class="we-offsight-updates"><div class="we-offsight-title">🎭 最近后台动态</div>'
-        + updates.slice(0, 5).map(u2 =>
-          '<div class="we-offsight-update"><span class="we-offsight-update-round">第' + u(u2.round) + '轮</span>'
-          + '<span class="we-offsight-update-char">' + u(u2.character) + '</span>'
-          + '<span class="we-offsight-update-activity">' + u(u2.activity) + '</span></div>'
+      html += '<div class="we-offsight-title">🎭 最近后台动态</div>'
+        + '<div class="we-offsight-timeline">'
+        + updates.slice(0, 8).map(u2 =>
+          '<div class="we-offsight-timeline-item">'
+          + '<div class="we-offsight-timeline-dot"></div>'
+          + '<div class="we-offsight-timeline-body">'
+          + '<div class="we-offsight-timeline-head">'
+          + (u2.round != null ? '<span class="we-offsight-timeline-round">第' + u(u2.round) + '轮</span>' : '')
+          + '<span class="we-offsight-timeline-char">' + u(u2.character) + '</span>'
+          + '</div>'
+          + '<div class="we-offsight-timeline-activity">' + u(u2.activity) + '</div>'
+          + (u2.goal ? '<div class="we-offsight-timeline-meta">目标：' + u(u2.goal) + '</div>' : '')
+          + (u2.mood ? '<div class="we-offsight-timeline-meta">心情：' + u(u2.mood) + '</div>' : '')
+          + (u2.location ? '<div class="we-offsight-timeline-meta">位置：' + u(u2.location) + '</div>' : '')
+          + '</div></div>'
         ).join('')
         + '</div>';
     } else {
-      html += '<div class="we-empty" style="margin-top:4px;">暂无后台动态（开启「角色幕后推演」并完成一次推演后生成）</div>';
+      html += '<div class="we-empty" style="margin-top:4px;">暂无后台动态，推演后自动生成</div>';
     }
 
-    // 幕后角色档案
-    if (chars.length) {
-      html += '<div class="we-offsight-chars"><div class="we-offsight-title">👤 幕后角色档案</div>'
-        + renderPagedList(chars, 'offsight-chars', (c, i) =>
-          '<div class="we-offsight-char">'
-          + '<div class="we-offsight-char-head"><span class="we-offsight-char-name">' + u(c.name) + '</span>'
-          + (c.location ? '<span class="we-offsight-char-loc">📍 ' + u(c.location) + '</span>' : '')
-          + (c.mood ? '<span class="we-badge" style="background:var(--we-blue,#58b8a9);font-size:10px;">' + u(c.mood) + '</span>' : '')
-          + '</div>'
-          + (c.activity ? '<div class="we-offsight-char-activity">' + u(c.activity) + '</div>' : '')
-          + (c.goal ? '<div class="we-offsight-char-goal">目标：' + u(c.goal) + '</div>' : '')
-          + '</div>'
-        )
-        + '</div>';
-    }
-
-    // 社交圈
+    // 3. 社交圈（圈子卡片 + 成员 + 活跃角色标签 + 关联圈链接 + infoScope/currentActivity 小字）
     if (circles.length) {
-      html += '<div class="we-offsight-circles"><div class="we-offsight-title">🕸️ 社交圈</div>'
+      const typeColorMap = { '地缘': '#58b8a9', '业缘': '#7c5cff', '血缘': '#e05555', '志缘': '#d0aa58', '利缘': '#3ecf8e' };
+      html += '<div class="we-offsight-title">🕸️ 社交圈</div>'
+        + '<div class="we-offsight-circles">'
         + circles.map(c => {
-          const typeColor = { '地缘': '#58b8a9', '业缘': '#7c5cff', '血缘': '#e05555', '志缘': '#d0aa58', '利缘': '#3ecf8e' }[c.type] || '#7a8a9a';
+          const typeColor = typeColorMap[c.type] || '#7a8a9a';
+          const activeChars = Array.isArray(c.activeCharacters) && c.activeCharacters.length
+            ? '<div class="we-offsight-circle-active">活跃：' + u(c.activeCharacters.join('、')) + '</div>' : '';
+          const links = Array.isArray(c.circleLinks) && c.circleLinks.length
+            ? '<div class="we-offsight-circle-links">↔ ' + u(c.circleLinks.join('、')) + '</div>' : '';
           return '<div class="we-offsight-circle">'
             + '<div class="we-offsight-circle-head"><span class="we-offsight-circle-name">' + u(c.name) + '</span>'
             + '<span class="we-badge" style="background:' + typeColor + ';font-size:10px;">' + u(c.type || '地缘') + '</span></div>'
             + (c.members?.length ? '<div class="we-offsight-circle-members">成员：' + u(c.members.join('、')) + '</div>' : '')
+            + activeChars
+            + links
             + (c.interactions ? '<div class="we-offsight-circle-meta">互动：' + u(c.interactions) + '</div>' : '')
             + (c.infoScope ? '<div class="we-offsight-circle-meta">信息范围：' + u(c.infoScope) + '</div>' : '')
             + (c.currentActivity ? '<div class="we-offsight-circle-cur">当前动态：' + u(c.currentActivity) + '</div>' : '')
@@ -6202,6 +6265,19 @@ window.WORLD_ENGINE_UI = (function() {
 
   // ========== 全局事件委托：声誉点击 + economy 编辑 ==========
   document.addEventListener('click', function(e) {
+    // 资产账本/幕后推演折叠卡（复用 data-we-seg-toggle 模式；.we-prompt-debug 内由 bindPromptSegToggle 专属处理，避免双重切换）
+    var segHead = e.target.closest('[data-we-seg-toggle]');
+    if (segHead && !e.target.closest('.we-prompt-debug')) {
+      var segCard = segHead.parentElement;
+      var segBody = segCard && segCard.querySelector('.we-prompt-seg-body');
+      if (segBody) {
+        var segHidden = segBody.style.display === 'none';
+        segBody.style.display = segHidden ? 'block' : 'none';
+        var segArrow = segHead.querySelector('.we-prompt-seg-arrow');
+        if (segArrow) segArrow.textContent = segHidden ? '▼' : '▶';
+        return;
+      }
+    }
     // 声誉方块点击
     var dot = e.target.closest('.we-rep-dot');
     if (dot) {
