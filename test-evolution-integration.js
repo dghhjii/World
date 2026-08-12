@@ -126,8 +126,9 @@ section('F. evolve 完整调用链');
   t('prompt 包含 JSON 示例字段', lastPrompt.includes('world_digest') && lastPrompt.includes('influenceChain'));
 
   // 段顺序：资产段/幕后段在状态段之前注入（prompt 拼接顺序）
+  // 注意：状态段标题用「## 当前世界状态（第N轮）」精确匹配——COT 记账思考里也含「当前世界状态」字样
   const iAssets = lastPrompt.indexOf('资产账本（记账员）');
-  const iState = lastPrompt.indexOf('当前世界状态');
+  const iState = lastPrompt.indexOf('## 当前世界状态');
   const iOffsight = lastPrompt.indexOf('角色幕后推演');
   t('资产段先于状态段', iAssets !== -1 && iState !== -1 && iAssets < iState);
   t('幕后段先于状态段', iOffsight !== -1 && iOffsight < iState);

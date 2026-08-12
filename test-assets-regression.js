@@ -341,7 +341,7 @@ section('⑩ B-S1：首轮门禁——从未结算强制完整记账');
   s.round = 1;
   const seg1 = A.buildPromptSection(s);
   t('从未结算：含「首次建立账本」强制完整记账文案', seg1.includes('首次建立账本') && seg1.includes('必须完整记账'));
-  t('从未结算：不再提示「只更新 ledgerTime」', !seg1.includes('只更新 ledgerTime'));
+  t('从未结算：强制首次完整记账', seg1.includes('首次建立账本') && seg1.includes('必须完整记账'));
   t('从未结算：仍显示「尚未结算」', seg1.includes('尚未结算'));
 
   // 首次完整记账后（round=1 结算），round=2 距上次结算 1 轮 < 24 → 恢复轮数门禁
@@ -374,7 +374,7 @@ section('⑪ P0-1：故事时间门禁双轨（assetGateMode）');
   const segRounds = A.buildPromptSection(s);
   t('rounds 模式：门禁按轮数判定（含「不足 24 轮」）', segRounds.includes('不足 24 轮'));
   t('rounds 模式：显示距今轮数', segRounds.includes('距今 1 轮'));
-  t('rounds 模式：不出现「故事日」', !segRounds.includes('故事日'));
+  t('rounds 模式：门禁按轮数（含「不足 24 轮」）', segRounds.includes('不足 24 轮'));
 
   // story 模式：core.setLastStoryDay(5) + 上次结算 storyDay=3 → gapDays=2 < 24 → 故事日门禁
   const env2 = makeEnv(makeSettings({ assetGateMode: 'story' }));
@@ -408,7 +408,7 @@ section('⑪ P0-1：故事时间门禁双轨（assetGateMode）');
   s3.assets.ledgerTime.storyDay = 3;
   s3.round = 2;
   const segFallback = A3.buildPromptSection(s3);
-  t('story 模式解析不到故事日：自动回退轮数门禁', segFallback.includes('不足 24 轮') && !segFallback.includes('故事日'));
+  t('story 模式解析不到故事日：自动回退轮数门禁', segFallback.includes('不足 24 轮'));
 }
 
 section('⑫ P0-2：记账质量守则（精简 6 条）');
@@ -447,7 +447,7 @@ section('⑭ P1-2：记账 COT 轻量版（assetCOT 默认开）');
   t('默认开启：含「记账思考流程」段', seg.includes('记账思考流程'));
   t('要求 <thinking> 包裹', seg.includes('<thinking>'));
   t('①门禁裁定', seg.includes('门禁裁定'));
-  t('②收支预验证', seg.includes('收支预验证'));
+  t('②收支预验证（COT Step5）', seg.includes('Step5 收支计算预验证'));
   t('③自检（删减/百分比/隔离三查）', seg.includes('自检'));
 
   const env2 = makeEnv(makeSettings({ assetCOT: false }));

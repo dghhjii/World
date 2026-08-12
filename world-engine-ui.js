@@ -2656,6 +2656,23 @@ window.WORLD_ENGINE_UI = (function() {
         ).join('')
         + '</div>';
     }
+
+    // ===== v5.7 结构化账本展示 =====
+    const structSections = [
+      ['外因', assets.externalFactors, x => u(x.name) + (x.desc ? '：' + u(x.desc) : '')],
+      ['内因', assets.internalFactors, x => u(x.name) + (x.desc ? '：' + u(x.desc) : '')],
+      ['流动资产', assets.liquidAssets, x => u(x.currency) + '：期初' + u(x.opening ?? '0') + ' +流入' + u(x.inflow ?? '0') + ' -流出' + u(x.outflow ?? '0') + (x.exchange ? ' +汇兑' + u(x.exchange) : '') + ' =期末' + u(x.closing ?? '0') + (x.pass ? ' ✓' : ' ✗')],
+      ['资产分布', assets.assetDistribution, x => u(x.entity) + (Array.isArray(x.buildings) && x.buildings.length ? '：' + u(x.buildings.join('、')) : '') + (x.status ? '（' + u(x.status) + '）' : '')],
+      ['生产效率', assets.productionStats, x => u(x.entity) + (x.building ? '·' + u(x.building) : '') + (x.status ? ' [' + u(x.status) + ']' : '') + (x.input ? ' 投入:' + u(x.input) : '') + (x.output ? ' 产出:' + u(x.output) : '') + (x.quality ? ' 品质:' + u(x.quality) : '') + (x.bottleneck ? ' 瓶颈:' + u(x.bottleneck) : '')],
+      ['运营监控', assets.operations, x => u(x.entity) + (x.income ? ' 收入:' + u(x.income) : '') + (x.expense ? ' 支出:' + u(x.expense) : '') + (x.net ? ' 净:' + u(x.net) : '') + (x.reason ? '（' + u(x.reason) + '）' : '')],
+      ['闭环等式', assets.closures, x => u(x.subject) + '：期初' + u(x.opening ?? '0') + ' +' + u(x.inflow ?? '0') + ' -' + u(x.outflow ?? '0') + (x.natural ? ' ±' + u(x.natural) : '') + ' =' + u(x.closing ?? '0') + (x.pass ? ' ✓' : ' ✗')]
+    ];
+    for (const [title, list, fmt] of structSections) {
+      if (!Array.isArray(list) || !list.length) continue;
+      html += '<div class="we-assets-struct"><div class="we-assets-major-title">📋 ' + title + '</div>'
+        + list.slice(0, 8).map(x => '<div class="we-assets-struct-item">' + fmt(x) + '</div>').join('')
+        + '</div>';
+    }
     html += '</div>';
     return html;
   }

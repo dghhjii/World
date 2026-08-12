@@ -91,6 +91,14 @@ window.WORLD_ENGINE_CORE = (function() {
           production: '',      // 生产效率统计
           funds: ''            // 可动用资金/流动资金概览
         },
+        // ===== v5.7 结构化账本字段（详细记账用，均为可选数组，空=未启用）=====
+        externalFactors: [],   // 外在波动因子 [{name, desc}]
+        internalFactors: [],   // 内生变化因子 [{name, desc}]
+        liquidAssets: [],      // 流动资产 [{currency, opening, inflow, outflow, exchange, closing, pass}]（多币种闭环）
+        assetDistribution: [], // 资产分布 [{entity, buildings, status}]（建筑树点名）
+        productionStats: [],   // 生产效率 [{entity, building, status, input, output, quality, bottleneck}]（≥3项指标）
+        operations: [],        // 运营监控 [{entity, income, expense, net, reason}]（收支明细）
+        closures: [],          // 闭环等式 [{subject, opening, inflow, outflow, natural, closing, pass}]（期初+流入-流出±自然=期末）
         entries: [],           // 账目条目 [{category,name,amount,change,note,round}]
         majorEvents: [],       // 重大结算事件记录 [{round,title,desc}]
         lastSettledRound: 0
@@ -369,6 +377,14 @@ window.WORLD_ENGINE_CORE = (function() {
     state.assets.overview.distribution = state.assets.overview.distribution || '';
     state.assets.overview.production = state.assets.overview.production || '';
     state.assets.overview.funds = state.assets.overview.funds || '';
+    // v5.7 结构化账本字段：缺失给空数组
+    state.assets.externalFactors = Array.isArray(state.assets.externalFactors) ? state.assets.externalFactors : [];
+    state.assets.internalFactors = Array.isArray(state.assets.internalFactors) ? state.assets.internalFactors : [];
+    state.assets.liquidAssets = Array.isArray(state.assets.liquidAssets) ? state.assets.liquidAssets : [];
+    state.assets.assetDistribution = Array.isArray(state.assets.assetDistribution) ? state.assets.assetDistribution : [];
+    state.assets.productionStats = Array.isArray(state.assets.productionStats) ? state.assets.productionStats : [];
+    state.assets.operations = Array.isArray(state.assets.operations) ? state.assets.operations : [];
+    state.assets.closures = Array.isArray(state.assets.closures) ? state.assets.closures : [];
     state.assets.entries = Array.isArray(state.assets.entries) ? state.assets.entries : [];
     state.assets.majorEvents = Array.isArray(state.assets.majorEvents) ? state.assets.majorEvents : [];
     if (!state.assets.lastSettledRound) state.assets.lastSettledRound = 0;

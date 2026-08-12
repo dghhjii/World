@@ -2070,6 +2070,12 @@
 .we-assets-entry-change { color: var(--we-blue); font-size: 11px; }
 .we-assets-entry-note { color: var(--we-text3); font-size: 11px; flex-basis: 100%; margin-left: 0; }
 .we-assets-major-title, .we-offsight-title { font-size: 11px; color: var(--we-text2); margin: 4px 0; }
+.we-assets-struct { display: flex; flex-direction: column; gap: 3px; }
+.we-assets-struct-item {
+  font-size: 12px; padding: 5px 10px; background: var(--we-bg);
+  border: 1px solid var(--we-border); border-radius: 8px;
+  color: var(--we-text); overflow-wrap: break-word; word-break: break-word;
+}
 .we-assets-major-item {
   font-size: 12px; padding: 5px 10px; margin: 3px 0;
   background: rgba(208,170,88,0.06); border: 1px solid rgba(208,170,88,0.22);
