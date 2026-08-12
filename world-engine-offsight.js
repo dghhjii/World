@@ -126,9 +126,9 @@ ${circlesText}
           id: claimed ? claimed.id : null,
           name,
           lastSeenRound: c.lastSeenRound === undefined ? (state.round || 0) : Math.max(0, parseInt(c.lastSeenRound) || 0),
-          location: String(c.location || '').slice(0, 60),
-          activity: String(c.activity || '').slice(0, 120),
-          goal: String(c.goal || '').slice(0, 120),
+          location: String(c.location || '').slice(0, 100),
+          activity: String(c.activity || '').slice(0, 200),
+          goal: String(c.goal || '').slice(0, 200),
           mood: String(c.mood || '平稳').slice(0, 40)
         });
       }
@@ -184,7 +184,7 @@ ${circlesText}
       for (const u of update.offscreen.updates) {
         if (!u || typeof u !== 'object' || !u.character || !u.activity) continue;
         const character = String(u.character).slice(0, 40);
-        const activity = String(u.activity).slice(0, 200);
+        const activity = String(u.activity).slice(0, 250);
         const dup = offscreen.updates.some(ex => ex && ex.round === state.round && ex.character === character && ex.activity === activity);
         if (dup) continue;
         offscreen.updates.unshift({ round: state.round, character, activity });
@@ -209,10 +209,10 @@ ${circlesText}
           name,
           type: CIRCLE_TYPES.includes(c.type) ? c.type : '地缘',
           members: Array.isArray(c.members) ? c.members.map(m => String(m).slice(0, 20)).slice(0, 12) : [],
-          interactions: String(c.interactions || '').slice(0, 120),
-          infoScope: String(c.infoScope || '').slice(0, 120),
-          currentActivity: String(c.currentActivity || '').slice(0, 120),
-          description: String(c.description || '').slice(0, 200)
+          interactions: String(c.interactions || '').slice(0, 200),
+          infoScope: String(c.infoScope || '').slice(0, 200),
+          currentActivity: String(c.currentActivity || '').slice(0, 200),
+          description: String(c.description || '').slice(0, 300)
         });
       }
       let max = 0;

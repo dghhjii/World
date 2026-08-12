@@ -199,7 +199,7 @@ window.WORLD_ENGINE_INJECT = (function() {
       console.error('[世界引擎] 资产账本注入失败（已隔离）', error);
     }
     // 长度保护：资产/幕后是新增段，context 从尾部截断时不能让它们挤占既有的摘要/动态/规则内容。
-    assetsText = assetsText.substring(0, 800);
+    assetsText = assetsText.substring(0, 1500);
     // 角色幕后动态（默认关闭；开启时注入最近后台动态）
     let offsightText = '';
     try {
@@ -208,7 +208,7 @@ window.WORLD_ENGINE_INJECT = (function() {
       console.error('[世界引擎] 幕后推演注入失败（已隔离）', error);
     }
     // 长度保护：同上，单段上限 800 字符。
-    offsightText = offsightText.substring(0, 800);
+    offsightText = offsightText.substring(0, 1500);
 
     const context = `
 【世界信息】

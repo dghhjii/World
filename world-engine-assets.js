@@ -50,8 +50,12 @@ window.WORLD_ENGINE_ASSETS = (function() {
     // 遍历前过滤 null/非对象元素，防止坏存档（如 entries=[null]）直接属性访问抛 TypeError；
     // 有效条目（含 name）同时用于「从未结算」判定
     const validEntries = entries.filter(e => e && typeof e === 'object' && e.name);
+    // 展示上限：entries 为 oldest-first（旧条目在前、新条目在尾部），slice(-15) 取最近 15 条，
+    // 防 note 放宽后 40 条全量展示把 prompt 撑爆（API 截断反而显示不全）
+    const shownEntries = validEntries.slice(-15);
     const entriesText = validEntries.length
-      ? validEntries.map(e => `[${e.category || '其他'}] ${e.name} — ${e.amount ?? '未知'}（变化：${e.change || '持平'}${e.note ? '；' + e.note : ''}）`).join('\n')
+      ? `（共 ${validEntries.length} 条，展示最近 ${shownEntries.length} 条）\n`
+        + shownEntries.map(e => `[${e.category || '其他'}] ${e.name} — ${e.amount ?? '未知'}（变化：${e.change || '持平'}${e.note ? '；' + e.note : ''}）`).join('\n')
       : '（暂无账目记录）';
 
     // B-S1：从未结算（无结算轮次且无任何账目条目）时，首轮没有可沿用的账目，
@@ -101,7 +105,7 @@ ${majorText}
         name: name,
         amount: e.amount === undefined ? '' : String(e.amount).slice(0, 60),
         change: String(e.change || '持平').slice(0, 40),
-        note: String(e.note || '').slice(0, 120),
+        note: String(e.note || '').slice(0, 200),
         round: round
       };
       const idx = out.findIndex(x => x.name === name);
@@ -141,8 +145,8 @@ ${majorText}
 
     // 上次结算时间：API 明确给 settledAt 才更新
     if (incoming.settledAt) {
-      assets.ledgerTime.settledAt = String(incoming.settledAt).slice(0, 120);
-      assets.ledgerTime.gap = String(incoming.gap || '').slice(0, 120);
+      assets.ledgerTime.settledAt = String(incoming.settledAt).slice(0, 200);
+      assets.ledgerTime.gap = String(incoming.gap || '').slice(0, 200);
       changed = true;
     }
 
@@ -162,10 +166,10 @@ ${majorText}
 
     if (fullySettled) {
       // overview 逐字段更新（仅 API 显式给出的字段）
-      if (ov.assets !== undefined) { assets.overview.assets = String(ov.assets).slice(0, 300); changed = true; }
-      if (ov.distribution !== undefined) { assets.overview.distribution = String(ov.distribution).slice(0, 300); changed = true; }
-      if (ov.production !== undefined) { assets.overview.production = String(ov.production).slice(0, 300); changed = true; }
-      if (ov.funds !== undefined) { assets.overview.funds = String(ov.funds).slice(0, 300); changed = true; }
+      if (ov.assets !== undefined) { assets.overview.assets = String(ov.assets).slice(0, 600); changed = true; }
+      if (ov.distribution !== undefined) { assets.overview.distribution = String(ov.distribution).slice(0, 600); changed = true; }
+      if (ov.production !== undefined) { assets.overview.production = String(ov.production).slice(0, 600); changed = true; }
+      if (ov.funds !== undefined) { assets.overview.funds = String(ov.funds).slice(0, 600); changed = true; }
 
       if (validEntries.length > 0) {
         // S2：增量合并——同名更新字段，新 name 追加；绝不整组覆盖
