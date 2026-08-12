@@ -1658,6 +1658,7 @@ window.WORLD_ENGINE_UI = (function() {
     const body = panelBodyElement;
     if (!body) return;
     listPagerCounter = 0;
+    try {
 
     const state = core.loadState();
     const checkpoint = core.restoreCheckpoint();
@@ -1680,8 +1681,15 @@ window.WORLD_ENGINE_UI = (function() {
 
     updatePanelHeader(s, active.layer);
     bindEvents(state);
+  } catch (err) {
+    // 渲染兜底：任何区块渲染异常不再让整个面板挂掉/白屏，显示错误并保持面板可用
+    console.error('[世界引擎] 面板渲染异常', err);
+    try {
+      body.innerHTML = '<div class="we-empty">面板渲染异常：' + u(String(err && err.message || err)) + '<br><button class="we-btn" data-we-refresh>重试</button></div>';
+      bindEvents(state);
+    } catch (_) { /* 兜底失败不再递归 */ }
   }
-
+}
   /**
    * 世界稳定度（纯 UI 现算，只读，不写存档/不进 prompt/不返 API）
    * 稳定度 = clamp(100 - 世界压力, 0, 100)
@@ -2614,8 +2622,8 @@ window.WORLD_ENGINE_UI = (function() {
     }
     const lt = assets.ledgerTime || {};
     const ov = assets.overview || {};
-    const entries = assets.entries || [];
-    const majorEvents = assets.majorEvents || [];
+    const entries = Array.isArray(assets.entries) ? assets.entries.filter(x => x && typeof x === 'object') : [];
+    const majorEvents = Array.isArray(assets.majorEvents) ? assets.majorEvents.filter(x => x && typeof x === 'object') : [];
     // 距今 N 轮：当前轮 - 上次结算轮（两者均可解析时）
     const curRound = Number(s?.round);
     const lastRound = Number(assets.lastSettledRound);
@@ -2649,8 +2657,10 @@ window.WORLD_ENGINE_UI = (function() {
         + '</div>';
     }
     // 3. 账目条目表格化（类别 | 名称 | 数值 | 变化 | 备注），数值右对齐、变化正绿负红、备注单行省略
+    // L6：entries 为 oldest-first（新条目在尾部），展示时倒序（新在前），分页第 1 页即最新账目
     if (entries.length) {
-      html += '<div class="we-assets-entries">' + renderPagedList(entries, 'assets-entries', (e, i) =>
+      const displayEntries = entries.slice().reverse();
+      html += '<div class="we-assets-entries">' + renderPagedList(displayEntries, 'assets-entries', (e, i) =>
         '<div class="we-assets-entry-row">'
         + '<span class="we-assets-entry-cat">' + u(e.category || '其他') + '</span>'
         + '<span class="we-assets-entry-name">' + u(e.name) + '</span>'
@@ -2732,9 +2742,9 @@ window.WORLD_ENGINE_UI = (function() {
       } catch (_) {}
       return '<div class="we-empty">' + hint + '</div>';
     }
-    const chars = offscreen.characters || [];
-    const updates = offscreen.updates || [];
-    const circles = s?.socialCircles || [];
+    const chars = (offscreen.characters || []).filter(x => x && typeof x === 'object');
+    const updates = (offscreen.updates || []).filter(x => x && typeof x === 'object');
+    const circles = (Array.isArray(s?.socialCircles) ? s.socialCircles : []).filter(x => x && typeof x === 'object');
 
     let html = '<div class="we-offsight-wrap">';
 
@@ -2752,8 +2762,7 @@ window.WORLD_ENGINE_UI = (function() {
             + (c.activity ? '<div class="we-offsight-char-activity">动向：' + u(c.activity) + '</div>' : '')
             + (c.goal ? '<div class="we-offsight-char-goal">目标：' + u(c.goal) + '</div>' : '')
             + '</div>';
-        })
-        + '</div>';
+        });
     }
 
     // 2. 动态日志时间线（轮次 + 角色 + 动态，goal/mood/location 若有则小字附卡内）
@@ -2793,7 +2802,7 @@ window.WORLD_ENGINE_UI = (function() {
           return '<div class="we-offsight-circle">'
             + '<div class="we-offsight-circle-head"><span class="we-offsight-circle-name">' + u(c.name) + '</span>'
             + '<span class="we-badge" style="background:' + typeColor + ';font-size:10px;">' + u(c.type || '地缘') + '</span></div>'
-            + (c.members?.length ? '<div class="we-offsight-circle-members">成员：' + u(c.members.join('、')) + '</div>' : '')
+            + (Array.isArray(c.members) && c.members.length ? '<div class="we-offsight-circle-members">成员：' + u(c.members.join('、')) + '</div>' : '')
             + activeChars
             + links
             + (c.interactions ? '<div class="we-offsight-circle-meta">互动：' + u(c.interactions) + '</div>' : '')

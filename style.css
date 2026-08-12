@@ -2156,8 +2156,8 @@
 .we-assets-entry-name { color: var(--we-text); font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .we-assets-entry-amount { color: var(--we-gold); text-align: right; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .we-assets-entry-change { font-size: 11px; text-align: right; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.we-assets-change-up { color: var(--we-success, #4caf50); font-weight: 600; }
-.we-assets-change-down { color: var(--we-danger, #e05c5c); font-weight: 600; }
+.we-assets-change-up { color: var(--we-success, #69b68e); font-weight: 600; }
+.we-assets-change-down { color: var(--we-danger, #d66f68); font-weight: 600; }
 .we-assets-entry-note { color: var(--we-text3); font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
 
 /* 结构化区块折叠卡（data-we-seg-toggle 委托切换） */
@@ -2175,8 +2175,8 @@
   background: rgba(122,138,154,0.06); border: 1px solid rgba(122,138,154,0.14); border-radius: 6px;
   color: var(--we-text); overflow-wrap: break-word; word-break: break-word; line-height: 1.5;
 }
-.we-assets-closure-pass { color: var(--we-success, #4caf50); font-weight: 600; }
-.we-assets-closure-fail { color: var(--we-danger, #e05c5c); font-weight: 600; }
+.we-assets-closure-pass { color: var(--we-success, #69b68e); font-weight: 600; }
+.we-assets-closure-fail { color: var(--we-danger, #d66f68); font-weight: 600; }
 
 /* 重大结算事件时间线：竖线 + 圆点 + 轮次 + 标题 + 简述 */
 .we-assets-timeline-title { font-size: 11px; color: var(--we-text2); margin: 6px 0 4px; }
