@@ -49,10 +49,22 @@ window.WORLD_ENGINE_OFFSIGHT = (function() {
       ? chars.map(c => `- ${c.name}（最近出现第${c.lastSeenRound || 0}轮，位置：${c.location || '未知'}；当前动向：${c.activity || '日常'}；目标：${c.goal || '不明'}；状态：${c.mood || '平稳'}）`).join('\n')
       : '（暂无幕后角色档案）';
     // updates 为 newest-first（unshift 头部插入），取前 4 条即最近 4 条
-    const updatesText = updates.slice(0, 4).map(u => `- 第${u.round}轮 ${u.character}：${u.activity}`).join('\n')
-      || '（暂无动态记录）';
+    // v5.7：动态条目含可选 goal/mood/location（丰富度只在此后台段展示，注入段保持「角色：动态」单行）
+    const updatesText = updates.slice(0, 4).map(u => {
+      const extra = [];
+      if (u.goal) extra.push('目标：' + u.goal);
+      if (u.mood) extra.push('状态：' + u.mood);
+      if (u.location) extra.push('位置：' + u.location);
+      const suffix = extra.length ? '（' + extra.join('；') + '）' : '';
+      return `- 第${u.round}轮 ${u.character}：${u.activity}${suffix}`;
+    }).join('\n') || '（暂无动态记录）';
     const circlesText = circles.length
-      ? circles.map(c => `- ${c.name}（${c.type || '地缘'}圈，成员：${(c.members || []).join('、') || '不明'}；互动：${c.interactions || '日常'}；信息范围：${c.infoScope || '圈内事务'}；当前动态：${c.currentActivity || '无'}）`).join('\n')
+      ? circles.map(c => {
+          const active = Array.isArray(c.activeCharacters) && c.activeCharacters.length ? `；活跃角色：${c.activeCharacters.join('、')}` : '';
+          const groups = Array.isArray(c.relatedGroups) && c.relatedGroups.length ? `；关联团体：${c.relatedGroups.join('、')}` : '';
+          const links = Array.isArray(c.circleLinks) && c.circleLinks.length ? `；关联圈：${c.circleLinks.join('、')}` : '';
+          return `- ${c.name}（${c.type || '地缘'}圈，成员：${(c.members || []).join('、') || '不明'}；互动：${c.interactions || '日常'}；信息范围：${c.infoScope || '圈内事务'}；当前动态：${c.currentActivity || '无'}${active}${groups}${links}）`;
+        }).join('\n')
       : '（暂无社交圈）';
 
     return `
@@ -81,16 +93,17 @@ ${circlesText}
     "characters": [  // 全量角色档案（继承上轮所有角色，只更新有变化的字段）
       { "id": null, "name": "角色名", "lastSeenRound": 轮次, "location": "位置", "activity": "本轮动向", "goal": "当前目标", "mood": "状态" }
     ],
-    "updates": [  // 本轮新增后台动态（1-3条）
-      { "character": "角色名", "activity": "该角色本轮做了什么" }
+    "updates": [  // 本轮新增后台动态（1-3条）；goal/mood/location 为可选字段，缺省可省略
+      { "character": "角色名", "activity": "该角色本轮做了什么", "goal": "本轮目标（可选）", "mood": "情绪状态（可选）", "location": "位置（可选）" }
     ]
   },
   "socialCircles": [  // 全量社交圈（继承已有圈，只更新有变化的字段；新圈用 id:null 语义新增）
-    { "id": null, "name": "圈子名", "type": "${CIRCLE_TYPES.join('/')}", "members": ["成员"], "interactions": "互动频率与方式", "infoScope": "圈内信息范围", "currentActivity": "当前动态", "description": "一句话描述" }
+    { "id": null, "name": "圈子名", "type": "${CIRCLE_TYPES.join('/')}", "members": ["成员"], "activeCharacters": ["活跃角色名（上限12）"], "relatedGroups": ["关联团体名（上限8）"], "circleLinks": ["其他圈子名（上限8）"], "interactions": "互动频率与方式", "infoScope": "圈内信息范围", "currentActivity": "当前动态", "description": "一句话描述" }
   ]
 }
 - characters 必须全量返回：已有角色沿用 id，新角色 id 填 null（由本地分配）；已从世界消失的角色直接不返回（本地自动移除）。
 - socialCircles 必须全量返回：已有圈沿用 id，新圈 id 填 null；信息可在成员变化时更新，但不得为凑数重复创建。
+- 圈子网络约束：圈子必须与幕后角色档案（activeCharacters 引用 characters 的 name）和关联圈子（circleLinks 引用其他圈子的 name）建立连接，禁止孤立圈子；已从世界消失的连接在更新时移除。
 `;
   }
 
@@ -180,6 +193,7 @@ ${circlesText}
     }
 
     // —— 后台动态日志：追加本轮更新（同轮同角色同动态去重）——
+    // v5.7：条目支持可选 goal/mood/location（各 slice 40/40/100）；缺省不写，保持旧数据兼容
     if (Array.isArray(update.offscreen?.updates)) {
       for (const u of update.offscreen.updates) {
         if (!u || typeof u !== 'object' || !u.character || !u.activity) continue;
@@ -187,7 +201,11 @@ ${circlesText}
         const activity = String(u.activity).slice(0, 250);
         const dup = offscreen.updates.some(ex => ex && ex.round === state.round && ex.character === character && ex.activity === activity);
         if (dup) continue;
-        offscreen.updates.unshift({ round: state.round, character, activity });
+        const entry = { round: state.round, character, activity };
+        if (u.goal != null && u.goal !== '') entry.goal = String(u.goal).slice(0, 40);
+        if (u.mood != null && u.mood !== '') entry.mood = String(u.mood).slice(0, 40);
+        if (u.location != null && u.location !== '') entry.location = String(u.location).slice(0, 100);
+        offscreen.updates.unshift(entry);
         dirty = true;
       }
       const updateCap = intSetting('offscreenUpdateCap', 16, 1);
@@ -209,6 +227,10 @@ ${circlesText}
           name,
           type: CIRCLE_TYPES.includes(c.type) ? c.type : '地缘',
           members: Array.isArray(c.members) ? c.members.map(m => String(m).slice(0, 20)).slice(0, 12) : [],
+          // v5.7 社交圈网络：三连接字段（Array.isArray 防御 + 逐项 String 截断，上限 12/8/8；旧存档无字段 → 默认 []）
+          activeCharacters: Array.isArray(c.activeCharacters) ? c.activeCharacters.map(m => String(m).slice(0, 40)).slice(0, 12) : [],
+          relatedGroups: Array.isArray(c.relatedGroups) ? c.relatedGroups.map(m => String(m).slice(0, 40)).slice(0, 8) : [],
+          circleLinks: Array.isArray(c.circleLinks) ? c.circleLinks.map(m => String(m).slice(0, 40)).slice(0, 8) : [],
           interactions: String(c.interactions || '').slice(0, 200),
           infoScope: String(c.infoScope || '').slice(0, 200),
           currentActivity: String(c.currentActivity || '').slice(0, 200),

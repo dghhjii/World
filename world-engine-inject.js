@@ -210,6 +210,52 @@ window.WORLD_ENGINE_INJECT = (function() {
     // 长度保护：同上，单段上限 800 字符。
     offsightText = offsightText.substring(0, 1500);
 
+    // 时局简报（默认关闭；开启时在【世界信息】块末尾追加报刊体摘要，纯文本组合，不新增 state 字段）
+    let newsDigestText = '';
+    try {
+      const api = window.WORLD_ENGINE_API;
+      const settings = api && api.getSettings ? api.getSettings() : {};
+      if (settings.newsDigestEnabled === true) {
+        // 终局阶段：conflict 已爆发/已消散，progress 已完成/已失败
+        const terminalStages = ['已爆发', '已消散', '已完成', '已失败'];
+        const digest = ['📰 时局简报'];
+        // 头条：最高 level 的未终局事件（带 evolveResult），取名称 + 简述
+        const headEvent = (worldState.events || [])
+          .filter(e => e && e.evolveResult && !terminalStages.includes(e.stage))
+          .sort((a, b) => (b.level || 0) - (a.level || 0))[0];
+        if (headEvent) {
+          const headBrief = String(headEvent.evolveResult || '').slice(0, 60);
+          digest.push(`🔔 头条：${headEvent.name}${headBrief ? '——' + headBrief : ''}`);
+        }
+        // 产业简讯：经济信号前 3 条，每条约 20 字
+        const econSignals = (econ.signals || []).slice(0, 3);
+        if (econSignals.length) {
+          digest.push('📉 产业：' + econSignals.map(s => String(s.summary || '').slice(0, 20)).join('；'));
+        }
+        // 舆情：Lv3+ 风声前 2 条，[类型]内容
+        const hotWinds = (worldState.winds || [])
+          .filter(w => (w.level || 0) >= 3)
+          .slice(0, 2);
+        if (hotWinds.length) {
+          digest.push('📢 舆情：' + hotWinds.map(w =>
+            `[${windTypeNames[w.type] || '信息'}]` + String(w.content || '').slice(0, 40)
+          ).join('；'));
+        }
+        // 生活流：最近一条幕后动态的可公开部分（幕后推演关闭时省略该行）
+        if (settings.offscreenEnabled === true) {
+          const lastUpdate = ((worldState.offscreen && worldState.offscreen.updates) || [])[0];
+          if (lastUpdate) {
+            const act = String(lastUpdate.activity || '').slice(0, 40);
+            digest.push(`🤫 生活：${lastUpdate.character || '某人'}${act ? '——' + act : ''}`);
+          }
+        }
+        // 只有至少一条内容时才输出整段；整体上限 800 字符
+        if (digest.length > 1) newsDigestText = digest.join('\n').substring(0, 800);
+      }
+    } catch (error) {
+      console.error('[世界引擎] 时局简报生成失败（已隔离）', error);
+    }
+
     const context = `
 【世界信息】
 更新轮次：${worldState.round}
@@ -226,6 +272,7 @@ window.WORLD_ENGINE_INJECT = (function() {
 ${assetsText}
 ${offsightText}
 ${rulesSummary}
+${newsDigestText}
     `.trim();
 
     let maxChars = 5000;

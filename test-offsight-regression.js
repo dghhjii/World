@@ -404,6 +404,119 @@ section('⑪ L2 修复：超长名字（>40 字符）旧存档认领成功、不
     && s2.socialCircles[0].name === longCircle.slice(0, 40));
 }
 
+section('⑫ v5.7 社交圈三连接字段（activeCharacters/relatedGroups/circleLinks）');
+{
+  const env = makeEnv(makeSettings({ offscreenEnabled: true }));
+  const s = defaultState(env.sandbox);
+  s.round = 1;
+  const O = env.sandbox.WORLD_ENGINE_OFFSIGHT;
+  // 旧存档圈无新字段 → 合并后默认空数组
+  s.socialCircles = [{ id: 'circle_1', name: '丙字巷邻里圈', type: '地缘' }];
+  O.mergeUpdate(s, {
+    socialCircles: [
+      { id: 'circle_1', name: '丙字巷邻里圈', type: '地缘' }, // 旧存档圈：无新字段
+      { id: null, name: '元老院政务圈', type: '业缘',
+        activeCharacters: ['萧子山', '程栋'],
+        relatedGroups: ['元老院', '执委会'],
+        circleLinks: ['丙字巷邻里圈', '商帮圈'] }
+    ]
+  });
+  const old = s.socialCircles.find(c => c.id === 'circle_1');
+  const gov = s.socialCircles.find(c => c.name === '元老院政务圈');
+  t('旧存档圈子无新字段 → 默认空数组',
+    Array.isArray(old.activeCharacters) && old.activeCharacters.length === 0
+    && Array.isArray(old.relatedGroups) && old.relatedGroups.length === 0
+    && Array.isArray(old.circleLinks) && old.circleLinks.length === 0);
+  t('新字段正确落盘（activeCharacters/relatedGroups/circleLinks）',
+    JSON.stringify(gov.activeCharacters) === JSON.stringify(['萧子山', '程栋'])
+    && JSON.stringify(gov.relatedGroups) === JSON.stringify(['元老院', '执委会'])
+    && JSON.stringify(gov.circleLinks) === JSON.stringify(['丙字巷邻里圈', '商帮圈']));
+  // 非数组/脏值防御 → []
+  O.mergeUpdate(s, {
+    socialCircles: [
+      { id: 'circle_1', name: '丙字巷邻里圈', type: '地缘',
+        activeCharacters: '不是数组', relatedGroups: null, circleLinks: 42 }
+    ]
+  });
+  const old2 = s.socialCircles.find(c => c.id === 'circle_1');
+  t('非数组脏值 → 默认空数组',
+    Array.isArray(old2.activeCharacters) && old2.activeCharacters.length === 0
+    && Array.isArray(old2.relatedGroups) && old2.relatedGroups.length === 0
+    && Array.isArray(old2.circleLinks) && old2.circleLinks.length === 0);
+  // 上限裁剪 12/8/8
+  O.mergeUpdate(s, {
+    socialCircles: [
+      { id: null, name: '商会圈', type: '志缘',
+        activeCharacters: Array.from({ length: 15 }, (_, i) => '角' + i),
+        relatedGroups: Array.from({ length: 10 }, (_, i) => '团' + i),
+        circleLinks: Array.from({ length: 10 }, (_, i) => '圈' + i) }
+    ]
+  });
+  const biz = s.socialCircles.find(c => c.name === '商会圈');
+  t('数组上限裁剪 12/8/8', biz.activeCharacters.length === 12 && biz.relatedGroups.length === 8 && biz.circleLinks.length === 8);
+  // 逐项截断 40 字符
+  const long = '超长名'.repeat(20); // 60 字符
+  O.mergeUpdate(s, {
+    socialCircles: [
+      { id: null, name: '超长项圈', type: '志缘', activeCharacters: [long], relatedGroups: [long], circleLinks: [long] }
+    ]
+  });
+  const longC = s.socialCircles.find(c => c.name === '超长项圈');
+  t('逐项截断 40 字符', longC.activeCharacters[0].length === 40 && longC.relatedGroups[0].length === 40 && longC.circleLinks[0].length === 40);
+}
+
+section('⑬ v5.7 updates 扩字段（goal/mood/location）');
+{
+  const env = makeEnv(makeSettings({ offscreenEnabled: true }));
+  const s = defaultState(env.sandbox);
+  s.round = 2;
+  const O = env.sandbox.WORLD_ENGINE_OFFSIGHT;
+  O.mergeUpdate(s, {
+    offscreen: { updates: [
+      { character: '吴明达', activity: '组织灯会', goal: '筹齐灯油钱', mood: '热络', location: '丙字巷' },
+      { character: '萧子山', activity: '预算协调', goal: '通过修缮预算' } // 缺省 mood/location
+    ]}
+  });
+  const wu = s.offscreen.updates.find(u => u.character === '吴明达');
+  const xiao = s.offscreen.updates.find(u => u.character === '萧子山');
+  t('goal/mood/location 落盘', wu.goal === '筹齐灯油钱' && wu.mood === '热络' && wu.location === '丙字巷');
+  t('缺省字段不写（保持旧数据兼容）', xiao.goal === '通过修缮预算' && xiao.mood === undefined && xiao.location === undefined);
+  // 空字符串视为缺省不写
+  O.mergeUpdate(s, { offscreen: { updates: [
+    { character: '程栋', activity: '巡视街面', goal: '', mood: '', location: '' }
+  ]}});
+  const cheng = s.offscreen.updates.find(u => u.character === '程栋');
+  t('空字符串不落盘', cheng.goal === undefined && cheng.mood === undefined && cheng.location === undefined);
+  // 截断 40/40/100
+  O.mergeUpdate(s, { offscreen: { updates: [
+    { character: '朱存炯', activity: '记账', goal: '超长目标'.repeat(20), mood: '超长状态'.repeat(20), location: '超长位置'.repeat(30) }
+  ]}});
+  const zhu = s.offscreen.updates.find(u => u.character === '朱存炯');
+  t('字段截断 40/40/100', zhu.goal.length === 40 && zhu.mood.length === 40 && zhu.location.length === 100);
+  // 后台 prompt 段展示丰富度；注入段保持「角色：动态」单行
+  const seg = O.buildPromptSection(s);
+  t('prompt 段展示 goal/mood/location 丰富度', seg.includes('目标：筹齐灯油钱') && seg.includes('状态：热络') && seg.includes('位置：丙字巷'));
+  const ctx = O.buildContextSection(s);
+  t('注入段仍为「角色：动态」单行（不含丰富度）', ctx.includes('：') && !ctx.includes('筹齐灯油钱') && !ctx.includes('热络'));
+}
+
+section('⑭ v5.7 buildPromptSection 含圈子网络约束句与输出格式');
+{
+  const env = makeEnv(makeSettings({ offscreenEnabled: true }));
+  const s = defaultState(env.sandbox);
+  s.round = 1;
+  const O = env.sandbox.WORLD_ENGINE_OFFSIGHT;
+  const seg = O.buildPromptSection(s);
+  t('含「禁止孤立圈子」网络约束句', seg.includes('禁止孤立圈子'));
+  t('约束句含 activeCharacters/circleLinks 引用说明',
+    seg.includes('activeCharacters 引用 characters 的 name') && seg.includes('circleLinks 引用其他圈子的 name'));
+  t('社交圈输出格式含三连接字段（上限 12/8/8）',
+    seg.includes('activeCharacters') && seg.includes('relatedGroups') && seg.includes('circleLinks')
+    && seg.includes('上限12') && seg.includes('上限8'));
+  t('updates 输出格式含可选 goal/mood/location',
+    seg.includes('本轮目标（可选）') && seg.includes('情绪状态（可选）') && seg.includes('位置（可选）'));
+}
+
 console.log('\n==========');
 console.log(`通过 ${passed} / ${passed + failed}`);
 process.exit(failed ? 1 : 0);

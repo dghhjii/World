@@ -3791,6 +3791,13 @@ window.WORLD_ENGINE_UI = (function() {
           全等级注入
         </label>
         <div style="font-size:11px;color:var(--we-text3);margin-top:3px;">勾选后，事件链和风声的 Lv1–Lv4 全部注入正文；不勾选时，风声仅注入 Lv3/4，事件链注入 Lv3/4 以及 Lv1/2 中已爆发或已完成的事件。</div>
+      </div>
+      <div class="we-input-group">
+        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
+          <input type="checkbox" id="we-news-digest-enabled" ${settings.newsDigestEnabled === true ? 'checked' : ''}>
+          时局简报（报刊体摘要）
+        </label>
+        <div style="font-size:11px;color:var(--we-text3);margin-top:3px;">开启后在正文注入末尾附加报刊体时局简报（头条/产业/舆情/生活，上限 800 字符）。</div>
       </div>`;
 
     const linkBody = `
@@ -4028,6 +4035,21 @@ window.WORLD_ENGINE_UI = (function() {
         <label>账目类别（逗号分隔）</label>
         <input type="text" id="we-asset-categories" value="${u(tv('assetCategories', '产业,资产,资金,势力'))}" placeholder="产业,资产,资金,势力">
         <div style="font-size:11px;color:var(--we-text3);margin-top:3px;">记账员只记录这些类别的动态，不记录个人随身物品、技能与零用收支。</div>
+      </div>
+      <div class="we-input-group">
+        <label>完整结算门禁模式</label>
+        <select id="we-asset-gate-mode" style="width:100%;">
+          <option value="rounds" ${(settings.assetGateMode || 'rounds') !== 'story' ? 'selected' : ''}>按轮（距上次完整结算满 N 轮）</option>
+          <option value="story" ${(settings.assetGateMode || 'rounds') === 'story' ? 'selected' : ''}>按故事时间（正文日期满 N 天）</option>
+        </select>
+        <div style="font-size:11px;color:var(--we-text3);margin-top:3px;">「按轮」以推演轮数为门槛；「按故事时间」要求正文里出现可抓取的日期（即按时间推演模式的日期正则），以日期间隔为门槛。</div>
+      </div>
+      <div class="we-input-group">
+        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
+          <input type="checkbox" id="we-asset-cot" ${settings.assetCOT !== false ? 'checked' : ''}>
+          记账思考流程（COT）
+        </label>
+        <div style="font-size:11px;color:var(--we-text3);margin-top:3px;">开启后记账员先推理再记账，账目质量更高、token 消耗更多；关闭则直接产出账目。</div>
       </div>
       <div class="we-input-group">
         <label>完整结算门禁（轮）</label>
@@ -5297,6 +5319,7 @@ window.WORLD_ENGINE_UI = (function() {
           injectIntoPrompt: document.getElementById('we-inject-into-prompt')?.checked !== false,
           injectMaxChars: Math.max(0, parseInt(gv('we-inject-max-chars')) || 0),
           injectAllLevels: document.getElementById('we-inject-all-levels')?.checked === true,
+          newsDigestEnabled: document.getElementById('we-news-digest-enabled')?.checked === true,
           memoryLinkEnabled: document.getElementById('we-memory-link-enabled')?.checked === true,
           syncToChat: document.getElementById('we-sync-to-chat')?.checked === true,
           autoBackup: document.getElementById('we-auto-backup')?.checked === true,
@@ -5366,6 +5389,8 @@ window.WORLD_ENGINE_UI = (function() {
           assetMajorThresholdHours: Math.max(1, parseInt(gv('we-asset-major-threshold')) || 24),
           assetEntryCap: Math.max(1, parseInt(gv('we-asset-entry-cap')) || 40),
           assetMajorEventCap: Math.max(1, parseInt(gv('we-asset-major-cap')) || 12),
+          assetGateMode: gv('we-asset-gate-mode') === 'story' ? 'story' : 'rounds',
+          assetCOT: document.getElementById('we-asset-cot')?.checked !== false,
           // 角色幕后推演
           offscreenEnabled: document.getElementById('we-offsight-enabled')?.checked === true,
           offscreenCharacterCap: Math.max(1, parseInt(gv('we-offsight-char-cap')) || 8),

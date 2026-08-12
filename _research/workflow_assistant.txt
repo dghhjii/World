@@ -1,0 +1,30 @@
+== 顶层 data keys ==
+['enabled', 'apiConfig', 'apiPresets', 'defaultApiPresetName', 'activeApiPresetName', 'apiPresetBindingsByChat', 'defaultTaskApiPreset', 'taskApiPresetOverridesById', 'tasks', 'contextTurnCount', 'contextExtractRules', 'contextExcludeRules', 'plotWorldbookConfig', 'taskPlotWorldbookOverridesEnabled', 'taskContextOverridesEnabled', 'memoryRecallRecentCount', 'finalInjectTemplate', 'tagVariableInjectTemplate', 'chatExtractTags', 'chatBodyTagReplaceRules', 'chatWorldbookWriteRules', 'presets', 'activePresetName', 'scheduleState', 'lastRunStatus', 'messageVarRetention', 'replicaFamilyCleanup', 'uiThemeId']
+
+== tasks ==
+task: 空模板任务 | stage: 1 | enabled: True
+  - [system]  | enabled=True | 你是工作流助手。根据上下文输出简短分析，包裹在 <result> 标签内。
+  - [user]  | enabled=True | 上一用户输入：
+$8
+
+当前 AI 回复：
+$7
+
+请输出 <result>...</result>
+
+== scheduleState ==
+{}
+
+== apiConfig ==
+{'url': '', 'apiKey': '', 'model': '', 'source': 'openai', 'requestHeaders': ''}
+
+== contextExtractRules ==
+[]
+
+== finalInjectTemplate ==
+
+
+== tagVariableInjectTemplate ==
+<post_process_data>
+{{result}}
+</post_process_data>

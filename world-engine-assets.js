@@ -22,11 +22,38 @@ window.WORLD_ENGINE_ASSETS = (function() {
     return settings().assetLedgerEnabled === true;
   }
 
-  /** 重大结算事件类型：命中这些情形时，本轮必须完整记账并同步产出风声/事件链 */
+  /** 重大结算事件类型：命中这些情形时，本轮必须完整记账并同步产出风声/事件链
+   *  P0-3：补 人事调度/制度变更/灾害（对齐 v5.7 口径） */
   const MAJOR_EVENT_HINTS = [
     '大额交易', '开张营业', '营业周期', '战损', '收购', '迁入迁出',
-    '投资理财', '获得新资产', '破产', '融资', '大额支出', '产业升级'
+    '投资理财', '获得新资产', '破产', '融资', '大额支出', '产业升级',
+    '人事调度', '制度变更', '灾害'
   ];
+
+  /**
+   * P0-1：取当前故事天数（故事时间门禁用）。
+   * 优先 core.getLastStoryDay()（按时间推演模式已在维护的最新解析值）；
+   * 取不到时回退到从近期对话（最近 6 条消息）parseStoryDay 解析。
+   * 两种途径都解析不到返回 null，调用方自动回退轮数门禁。
+   */
+  function getStoryDayNow() {
+    if (core && typeof core.getLastStoryDay === 'function') {
+      const v = core.getLastStoryDay();
+      if (v != null && Number.isFinite(Number(v))) return Number(v);
+    }
+    let text = '';
+    try {
+      const ctx = window.SillyTavern && typeof window.SillyTavern.getContext === 'function'
+        ? window.SillyTavern.getContext() : null;
+      const chat = ctx && Array.isArray(ctx.chat) ? ctx.chat : [];
+      text = chat.slice(-6).map(m => (m && (m.content || m.mes)) || '').join('\n');
+    } catch (e) { text = ''; }
+    if (text && core && typeof core.parseStoryDay === 'function') {
+      const v = core.parseStoryDay(text, settings());
+      if (v != null && Number.isFinite(Number(v))) return Number(v);
+    }
+    return null;
+  }
 
   /**
    * 构建喂给推演 API 的资产账本段落。
@@ -61,9 +88,49 @@ window.WORLD_ENGINE_ASSETS = (function() {
     // B-S1：从未结算（无结算轮次且无任何账目条目）时，首轮没有可沿用的账目，
     // 门禁必须是「本轮完整记账」，而不是「只更新 ledgerTime」（否则首轮永远不记账）
     const neverSettled = !lastSettledRound && validEntries.length === 0;
+
+    // P0-1：门禁双轨。assetGateMode='story'（故事时间模式）时，若能解析出
+    // 当前故事天数且上次结算留有 storyDay，按「故事日」判定并提示；解析不到
+    // （getLastStoryDay 为 null 且近期对话解析失败，或 storyDay 为 0）自动回退轮数门禁。
+    // rounds 模式完全保持现状（roundsSince 判定、文案含「轮」）。
+    const storyMode = settings().assetGateMode === 'story';
+    let gapText = `距今 ${roundsSince} 轮`;
+    let gateBody = '';
+    if (storyMode && !neverSettled) {
+      const now = getStoryDayNow();
+      const settledDay = Number(assets.ledgerTime && assets.ledgerTime.storyDay) || 0;
+      if (now != null && settledDay > 0) {
+        const gapDays = Math.max(0, now - settledDay);
+        gapText = `距今 ${gapDays} 个故事日`;
+        gateBody = `- 若距上次结算不足 ${threshold} 个故事日，且本轮没有重大结算事件：只更新 ledgerTime（沿用上次账目数据，账目结算时间锁定为上次结算时间保持不变，仅追加门禁说明），不得重写 overview 与 entries。\n- 若已满 ${threshold} 个故事日，或本轮发生重大结算事件（${MAJOR_EVENT_HINTS.join('、')}等），必须完整记账：更新 overview 全部四项 + entries 全部条目。`;
+      }
+    }
+    if (!gateBody) {
+      // rounds 模式 / story 模式回退：轮数门禁（现状文案 + 结算时间锁定语义）
+      gateBody = `- 若距上次完整结算不足 ${threshold} 轮，且本轮没有重大结算事件：只更新 ledgerTime（沿用上次账目数据，账目结算时间锁定为上次结算时间保持不变，仅追加门禁说明），不得重写 overview 与 entries。\n- 若已满 ${threshold} 轮，或本轮发生重大结算事件（${MAJOR_EVENT_HINTS.join('、')}等），必须完整记账：更新 overview 全部四项 + entries 全部条目。`;
+    }
     const gateLines = neverSettled
       ? '- 首次建立账本：本轮必须完整记账，输出 overview 全部四项（assets/distribution/production/funds）与 entries 全部条目，并设置 settledAt。'
-      : `- 若距上次完整结算不足 ${threshold} 轮，且本轮没有重大结算事件：只更新 ledgerTime（沿用上次账目数据），不得重写 overview 与 entries。\n- 若已满 ${threshold} 轮，或本轮发生重大结算事件（${MAJOR_EVENT_HINTS.join('、')}等），必须完整记账：更新 overview 全部四项 + entries 全部条目。`;
+      : gateBody;
+
+    // P0-2：记账质量守则（精简 6 条，反偷懒 + 闭环优先 + 个人资金隔离）
+    const qualityRules = `
+【记账质量守则】
+- 数字可追溯：任何汇总数字必须在同实体明细中可溯源，不可溯源写「待补明细」。
+- 百分比落地：任意百分比写成 基数×比率=绝对值。
+- 无变动要有原因：允许 Δ=0，但至少 1 个关键模块写明本期不变原因。
+- 删减禁令：上轮常设条目不得静默消失，消失必须写明 拆除/战损/转移/封存/被占 及后果。
+- 闭环优先：资金/库存/核心物资 写 期初+流入-流出=期末，可为 0 但显式写 0。
+- 个人资金隔离：{{user}} 个人随身收支不计入账本、不算「获得新资产」。`;
+
+    // P1-2：记账 COT 轻量版（assetCOT 默认开，false 时省略）。
+    // 主推演 engine-role 已要求通用 <thinking>，此处是记账专属 3 步，两者兼容。
+    const cotSection = settings().assetCOT !== false ? `
+【记账思考流程】
+输出资产字段前，先用 <thinking>...</thinking> 写下 3 步记账思考（每步一行，仅供人类查看；最终 JSON 必须完整独立可解析）：
+①门禁裁定：本轮故事时间/轮数距上次结算多少？有无重大结算事件？执行门禁规则 1) 或 2)。
+②收支预验证：本轮每笔收入/支出有来源去向与数值依据吗？不能闭环的标「待补明细」。
+③自检：删减禁令/百分比落地/个人资金隔离 三查。` : '';
 
     // majorEvents 为 unshift 头部插入（newest-first），slice(0,3) 取最近三条
     const majorText = majorEvents.length
@@ -76,13 +143,14 @@ window.WORLD_ENGINE_ASSETS = (function() {
 只记录{{user}}的资产、产业、势力与资金动态，不记录个人随身物品、技能与零用收支。
 
 【账目类别】${cats.join(' / ')}
-【上次结算时间】${settledAt}（第${lastSettledRound}轮，距今 ${roundsSince} 轮）
+【上次结算时间】${settledAt}（第${lastSettledRound}轮，${gapText}）
 
 【门禁规则】
 ${gateLines}
+- {{user}} 个人资金/随身物品变动不计入重大结算事件。
 - 更新账目时严禁简写省略历史信息；每一次更新必须完整继承上一版本的全部条目，数据演化清晰可溯。
 - entries 中每条 { category, name, amount, change, note }：amount 为当前数值，change 为本轮变化（如「+500两」「-3%」「持平」），note 为变化原因（可选）。
-
+${qualityRules}${cotSection}
 【当前账目】
 ${entriesText}
 
@@ -147,6 +215,17 @@ ${majorText}
     if (incoming.settledAt) {
       assets.ledgerTime.settledAt = String(incoming.settledAt).slice(0, 200);
       assets.ledgerTime.gap = String(incoming.gap || '').slice(0, 200);
+      // P0-1：从结算时间文本解析故事天数写入 ledgerTime.storyDay（故事时间门禁用）。
+      // 解析不到（返回 null/0）维持 0——buildPromptSection 自动回退轮数门禁。
+      let storyDay = 0;
+      if (core && typeof core.parseStoryDay === 'function') {
+        const sd = core.parseStoryDay(String(incoming.settledAt), settings());
+        const n = Number(sd);
+        if (Number.isFinite(n) && n > 0) storyDay = Math.round(n);
+      }
+      if (assets.ledgerTime.storyDay !== storyDay) {
+        assets.ledgerTime.storyDay = storyDay;
+      }
       changed = true;
     }
 

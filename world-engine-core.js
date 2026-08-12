@@ -82,7 +82,8 @@ window.WORLD_ENGINE_CORE = (function() {
         enabled: true, // 死字段（历史遗留）：全库无人读取，实际开关是设置项 assetLedgerEnabled；保留仅因旧存档兼容与测试断言
         ledgerTime: {
           settledAt: '',       // 上次结算账目的故事时间文本（如「澳宋-1638年-09月-02日」）
-          gap: ''              // 距上次结算的经过时间描述（门禁依据）
+          gap: '',             // 距上次结算的经过时间描述（门禁依据）
+          storyDay: 0          // 上次结算的故事天数（parseStoryDay 解析，故事时间门禁用；0=未解析/未结算）
         },
         overview: {
           assets: '',          // 宏观资产概览
@@ -359,9 +360,10 @@ window.WORLD_ENGINE_CORE = (function() {
     // 死字段兼容行：enabled 全库无人读取（实际开关为设置项 assetLedgerEnabled），
     // 保留该行仅保证旧存档残留字段被归一化为 true，删除会导致 test-assets-offsight 的迁移断言失效。
     state.assets.enabled = state.assets.enabled !== false; // 死字段（历史遗留）：实际开关为设置项 assetLedgerEnabled，此处仅保持兼容不初始化新值
-    if (!state.assets.ledgerTime || typeof state.assets.ledgerTime !== 'object') state.assets.ledgerTime = { settledAt: '', gap: '' };
+    if (!state.assets.ledgerTime || typeof state.assets.ledgerTime !== 'object') state.assets.ledgerTime = { settledAt: '', gap: '', storyDay: 0 };
     if (!state.assets.ledgerTime.settledAt) state.assets.ledgerTime.settledAt = '';
     if (!state.assets.ledgerTime.gap) state.assets.ledgerTime.gap = '';
+    if (!state.assets.ledgerTime.storyDay) state.assets.ledgerTime.storyDay = 0;
     if (!state.assets.overview || typeof state.assets.overview !== 'object') state.assets.overview = {};
     state.assets.overview.assets = state.assets.overview.assets || '';
     state.assets.overview.distribution = state.assets.overview.distribution || '';

@@ -358,6 +358,136 @@ section('⑩ B-S1：首轮门禁——从未结算强制完整记账');
   t('已有账目：显示距上次结算轮数', seg2.includes('距今 1 轮'));
 }
 
+section('⑪ P0-1：故事时间门禁双轨（assetGateMode）');
+{
+  // rounds 模式（默认，未设 assetGateMode）：门禁按轮数判定，文案含「轮」不含「故事日」
+  const env = makeEnv(makeSettings());
+  const s = defaultState(env.sandbox);
+  const A = env.sandbox.WORLD_ENGINE_ASSETS;
+  s.round = 1;
+  A.mergeUpdate(s, { assets: {
+    settledAt: '澳宋-1638年-09月-02日',
+    overview: { assets: '一处产业', funds: '100两' },
+    entries: [{ category: '资金', name: '现金储备', amount: '100两' }]
+  }});
+  s.round = 2;
+  const segRounds = A.buildPromptSection(s);
+  t('rounds 模式：门禁按轮数判定（含「不足 24 轮」）', segRounds.includes('不足 24 轮'));
+  t('rounds 模式：显示距今轮数', segRounds.includes('距今 1 轮'));
+  t('rounds 模式：不出现「故事日」', !segRounds.includes('故事日'));
+
+  // story 模式：core.setLastStoryDay(5) + 上次结算 storyDay=3 → gapDays=2 < 24 → 故事日门禁
+  const env2 = makeEnv(makeSettings({ assetGateMode: 'story' }));
+  const s2 = defaultState(env2.sandbox);
+  const A2 = env2.sandbox.WORLD_ENGINE_ASSETS;
+  s2.round = 1;
+  A2.mergeUpdate(s2, { assets: {
+    settledAt: '澳宋-1638年-09月-02日',
+    overview: { assets: '一处产业', funds: '100两' },
+    entries: [{ category: '资金', name: '现金储备', amount: '100两' }]
+  }});
+  s2.assets.ledgerTime.storyDay = 3; // 直接注入上次结算故事日
+  env2.sandbox.WORLD_ENGINE_CORE.setLastStoryDay(5);
+  s2.round = 2;
+  const segStory = A2.buildPromptSection(s2);
+  t('story 模式：门禁按故事日判定（含「不足 24 个故事日」）', segStory.includes('不足 24 个故事日'));
+  t('story 模式：显示距今故事日数', segStory.includes('距今 2 个故事日'));
+  t('story 模式：不出现轮数门禁文案', !segStory.includes('不足 24 轮'));
+  t('story 模式：保留结算时间锁定语义', segStory.includes('结算时间锁定为上次结算时间保持不变'));
+
+  // story 模式解析不到当前故事日（getLastStoryDay 为 null、对话为空）→ 自动回退轮数门禁
+  const env3 = makeEnv(makeSettings({ assetGateMode: 'story' }));
+  const s3 = defaultState(env3.sandbox);
+  const A3 = env3.sandbox.WORLD_ENGINE_ASSETS;
+  s3.round = 1;
+  A3.mergeUpdate(s3, { assets: {
+    settledAt: '澳宋-1638年-09月-02日',
+    overview: { assets: '一处产业', funds: '100两' },
+    entries: [{ category: '资金', name: '现金储备', amount: '100两' }]
+  }});
+  s3.assets.ledgerTime.storyDay = 3;
+  s3.round = 2;
+  const segFallback = A3.buildPromptSection(s3);
+  t('story 模式解析不到故事日：自动回退轮数门禁', segFallback.includes('不足 24 轮') && !segFallback.includes('故事日'));
+}
+
+section('⑫ P0-2：记账质量守则（精简 6 条）');
+{
+  const env = makeEnv(makeSettings());
+  const s = defaultState(env.sandbox);
+  const A = env.sandbox.WORLD_ENGINE_ASSETS;
+  const seg = A.buildPromptSection(s);
+  t('含「记账质量守则」段', seg.includes('记账质量守则'));
+  t('①数字可追溯：含「待补明细」', seg.includes('数字可追溯') && seg.includes('待补明细'));
+  t('②百分比落地：基数×比率=绝对值', seg.includes('百分比落地') && seg.includes('基数×比率=绝对值'));
+  t('③无变动要有原因：Δ=0 归因', seg.includes('无变动要有原因') && seg.includes('Δ=0'));
+  t('④删减禁令：不得静默消失', seg.includes('删减禁令') && seg.includes('拆除/战损/转移/封存/被占'));
+  t('⑤闭环优先：期初+流入-流出=期末', seg.includes('闭环优先') && seg.includes('期初+流入-流出=期末'));
+  t('⑥个人资金隔离：不算「获得新资产」', seg.includes('个人资金隔离') && seg.includes('不算「获得新资产」'));
+}
+
+section('⑬ P0-3：重大事件口径补全 + 个人资金排除');
+{
+  const env = makeEnv(makeSettings());
+  const A = env.sandbox.WORLD_ENGINE_ASSETS;
+  t('MAJOR_EVENT_HINTS 含 人事调度', A.MAJOR_EVENT_HINTS.includes('人事调度'));
+  t('MAJOR_EVENT_HINTS 含 制度变更', A.MAJOR_EVENT_HINTS.includes('制度变更'));
+  t('MAJOR_EVENT_HINTS 含 灾害', A.MAJOR_EVENT_HINTS.includes('灾害'));
+  const s = defaultState(env.sandbox);
+  const seg = A.buildPromptSection(s);
+  t('gateLines 含个人资金排除条款', seg.includes('个人资金/随身物品变动不计入重大结算事件'));
+}
+
+section('⑭ P1-2：记账 COT 轻量版（assetCOT 默认开）');
+{
+  const env = makeEnv(makeSettings());
+  const s = defaultState(env.sandbox);
+  const A = env.sandbox.WORLD_ENGINE_ASSETS;
+  const seg = A.buildPromptSection(s);
+  t('默认开启：含「记账思考流程」段', seg.includes('记账思考流程'));
+  t('要求 <thinking> 包裹', seg.includes('<thinking>'));
+  t('①门禁裁定', seg.includes('门禁裁定'));
+  t('②收支预验证', seg.includes('收支预验证'));
+  t('③自检（删减/百分比/隔离三查）', seg.includes('自检'));
+
+  const env2 = makeEnv(makeSettings({ assetCOT: false }));
+  const s2 = defaultState(env2.sandbox);
+  const seg2 = env2.sandbox.WORLD_ENGINE_ASSETS.buildPromptSection(s2);
+  t('assetCOT=false：不附加思考段', !seg2.includes('记账思考流程') && !seg2.includes('<thinking>'));
+}
+
+section('⑮ P0-1：mergeUpdate 解析 settledAt 写入 storyDay');
+{
+  const env = makeEnv(makeSettings());
+  const s = defaultState(env.sandbox);
+  const A = env.sandbox.WORLD_ENGINE_ASSETS;
+  const core = env.sandbox.WORLD_ENGINE_CORE;
+
+  // mock parseStoryDay 返回 42 → 写入 ledgerTime.storyDay
+  core.parseStoryDay = () => 42;
+  s.round = 1;
+  A.mergeUpdate(s, { assets: {
+    settledAt: '澳宋-1638年-09月-02日',
+    overview: { assets: '一处产业', funds: '100两' },
+    entries: [{ category: '资金', name: '现金储备', amount: '100两' }]
+  }});
+  t('settledAt 解析成功：storyDay 写入 42', s.assets.ledgerTime.storyDay === 42);
+  t('解析成功：结算照常推进', s.assets.lastSettledRound === 1);
+
+  // mock 解析不到（返回 null）→ storyDay 维持 0
+  core.parseStoryDay = () => null;
+  s.round = 2;
+  A.mergeUpdate(s, { assets: { settledAt: '无法解析的结算时间' } });
+  t('解析不到：storyDay 维持 0', s.assets.ledgerTime.storyDay === 0);
+  t('解析不到：settledAt 文本照常更新', s.assets.ledgerTime.settledAt.includes('无法解析的结算时间'));
+
+  // 真实 parseStoryDay（无 evolveTimeRe 设置）→ 返回 null，storyDay 保持 0（自动回退轮数门禁）
+  delete core.parseStoryDay;
+  s.round = 3;
+  A.mergeUpdate(s, { assets: { settledAt: '澳宋-1638年-09月-03日' } });
+  t('真实 parseStoryDay 无时间设置：storyDay 保持 0', s.assets.ledgerTime.storyDay === 0);
+}
+
 console.log('\n==========');
 console.log(`通过 ${passed} / ${passed + failed}`);
 process.exit(failed ? 1 : 0);
