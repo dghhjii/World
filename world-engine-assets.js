@@ -22,6 +22,14 @@ window.WORLD_ENGINE_ASSETS = (function() {
     return settings().assetLedgerEnabled === true;
   }
 
+  /** H1：pass 字段归一化——兼容 true/pass/是/1（大小写不敏感），防止 LLM 中文或 Pass 措辞被误判 ✗ */
+  function isPassTrue(v) {
+    if (v === true || v === 1) return true;
+    if (v === false || v === 0 || v === null || v === undefined) return false;
+    const s = String(v).trim().toLowerCase();
+    return s === 'true' || s === 'pass' || s === '是' || s === '1' || s === '通过';
+  }
+
   /** 重大结算事件类型：命中这些情形时，本轮必须完整记账并同步产出风声/事件链
    *  P0-3：补 人事调度/制度变更/灾害（对齐 v5.7 口径） */
   const MAJOR_EVENT_HINTS = [
@@ -95,6 +103,7 @@ window.WORLD_ENGINE_ASSETS = (function() {
     // rounds 模式完全保持现状（roundsSince 判定、文案含「轮」）。
     const storyMode = settings().assetGateMode === 'story';
     let gapText = `距今 ${roundsSince} 轮`;
+    let gapUnit = '轮';
     let gateBody = '';
     if (storyMode && !neverSettled) {
       const now = getStoryDayNow();
@@ -102,16 +111,28 @@ window.WORLD_ENGINE_ASSETS = (function() {
       if (now != null && settledDay > 0) {
         const gapDays = Math.max(0, now - settledDay);
         gapText = `距今 ${gapDays} 个故事日`;
-        gateBody = `- 若距上次结算不足 ${threshold} 个故事日，且本轮没有重大结算事件：只更新 ledgerTime（沿用上次账目数据，账目结算时间锁定为上次结算时间保持不变，仅追加门禁说明），不得重写 overview 与 entries。\n- 若已满 ${threshold} 个故事日，或本轮发生重大结算事件（${MAJOR_EVENT_HINTS.join('、')}等），必须完整记账：更新 overview 全部四项 + entries 全部条目。`;
+        gapUnit = '个故事日';
+        gateBody = `- 门禁规则1) 若距上次结算不足 ${threshold} 个故事日，且本轮没有重大结算事件：只更新 ledgerTime（沿用上次账目数据，账目结算时间锁定为上次结算时间保持不变，仅追加门禁说明），不得重写 overview/entries/结构化字段。\n- 门禁规则2) 若已满 ${threshold} 个故事日，或本轮发生重大结算事件（${MAJOR_EVENT_HINTS.join('、')}等），必须完整记账：更新 overview 全部四项 + entries 全部条目 + 结构化字段。`;
       }
     }
     if (!gateBody) {
       // rounds 模式 / story 模式回退：轮数门禁（现状文案 + 结算时间锁定语义）
-      gateBody = `- 若距上次完整结算不足 ${threshold} 轮，且本轮没有重大结算事件：只更新 ledgerTime（沿用上次账目数据，账目结算时间锁定为上次结算时间保持不变，仅追加门禁说明），不得重写 overview 与 entries。\n- 若已满 ${threshold} 轮，或本轮发生重大结算事件（${MAJOR_EVENT_HINTS.join('、')}等），必须完整记账：更新 overview 全部四项 + entries 全部条目。`;
+      gateBody = `- 门禁规则1) 若距上次完整结算不足 ${threshold} 轮，且本轮没有重大结算事件：只更新 ledgerTime（沿用上次账目数据，账目结算时间锁定为上次结算时间保持不变，仅追加门禁说明），不得重写 overview/entries/结构化字段。\n- 门禁规则2) 若已满 ${threshold} 轮，或本轮发生重大结算事件（${MAJOR_EVENT_HINTS.join('、')}等），必须完整记账：更新 overview 全部四项 + entries 全部条目 + 结构化字段。`;
     }
     const gateLines = neverSettled
-      ? '- 首次建立账本：本轮必须完整记账，输出 overview 全部四项（assets/distribution/production/funds）与 entries 全部条目，并设置 settledAt。'
+      ? '- 首次建立账本（视同门禁规则2)）：本轮必须完整记账，输出 overview 全部四项（assets/distribution/production/funds）与 entries 全部条目与结构化字段，并设置 settledAt。'
       : gateBody;
+
+    // H3：本地门禁预判（token 级自适应）——本地可判定「必然触发完整记账」时出完整指令；
+    // 未达阈值时（仍可能因重大事件触发）只保留精简指令，省非结算轮的固定 token 开销。
+    const willSettleLocally = neverSettled
+      || (storyMode && gapText.startsWith('距今') && /个故事日/.test(gapText) && (() => {
+          const n = getStoryDayNow();
+          const sd = Number(assets.ledgerTime && assets.ledgerTime.storyDay) || 0;
+          return n != null && sd > 0 && (n - sd) >= threshold;
+        })())
+      || (!storyMode && roundsSince >= threshold);
+    const fullDetail = willSettleLocally;
 
     // P0-2：记账质量守则（精简 6 条，反偷懒 + 闭环优先 + 个人资金隔离）
     const qualityRules = `
@@ -123,28 +144,63 @@ window.WORLD_ENGINE_ASSETS = (function() {
 - 闭环优先：资金/库存/核心物资 写 期初+流入-流出=期末，可为 0 但显式写 0。
 - 个人资金隔离：{{user}} 个人随身收支不计入账本、不算「获得新资产」。`;
 
-    // P1-2→V57：记账 COT 完整版（吸收 v5.7 七步思考框架，适配本引擎 state 结构）。
-    // assetCOT 默认开，false 时省略。未触发结算时只需 Step1 门禁裁定后直接输出，
-    // 触发完整记账时按 7 步推进（每步 1-2 行，总长可控；最终 JSON 必须完整独立可解析）。
-    const cotSection = settings().assetCOT !== false ? `
-【记账思考流程】（记账前必须按以下步数推进思考，不得减少或跳过；思考用 <thinking>...</thinking> 包裹，仅供人类查看）
-Step1 门禁裁定：
+    // P1-2→V57：记账 COT。assetCOT 默认开，false 时省略。
+    // H3 自适应：本地已判定必然触发完整记账 → 完整 7 步；未达阈值（门禁规则1) 概率高）→ 精简 Step1 +
+    // 一句「若因重大事件裁定触发再补做 Step2-7」。rounds 模式不写故事日（M1），story 引用本地数字（M2）。
+    const step1Text = `Step1 门禁裁定：
 - 账目初始化判定：若从未结算（无 ledgerTime/entries）→ 直接执行门禁规则2) 初始化更新；
-- 否则计算距上次结算的经过（轮数或故事日，故事日以 [账目结算时间] 为准，严禁从其它数据源自行推导）；
-- 时间线对齐：从上次 [账目结算时间] 对应的正文段落开始回顾（忽略之前已结算的事件，防重复计入），总结之后到剧情截止的事件；
+- 经过时间以【上次结算时间】行给出的「${gapText}」为准，不得自行推导或从其它数据源改算；
+- 时间线对齐：从上次结算时间对应的正文段落开始回顾（忽略之前已结算的事件，防重复计入），总结之后到剧情截止的事件；
 - 检查是否发生重大结算事件（${MAJOR_EVENT_HINTS.join('、')}等；{{user}} 个人资金变动不计入）；
-- 裁定：未满阈值且无重大事件 → 执行门禁规则1)（只更新 ledgerTime，[账目结算时间] 锁定不变，追加 [LedgerGap] 本轮未触发结算，沿用上次账目数据），直接输出，无需后续步骤；满阈值或有重大事件 → 执行门禁规则2) 进入 Step2。
-Step2 账本规则与逻辑：列出本轮构建账目必须遵守的至少 5 条规则与需自检的 3 个潜在矛盾。
-Step3 经济事件与传导：识别近期经济事件（饥荒/涨价/技术封锁/行业暴利等）对本地账目的传导渠道，思考在本期如何体现。
-Step4 账本更新前置：从上次期末数据对齐本期期初（各实体资金/库存/币种余额），规划需要从近期对话与当前世界状态中检索的佐证点。
-Step5 收支计算预验证：以基准货币推演每笔收入（数量×单价，单价与行情一致）与支出（人员×薪资、建筑×维护），库存-资金联动校验（销售：库存减少×售价=收入；采购：库存增加×采购价=支出），多币种按汇率折算，汇兑损益计入非经营项。
-Step6 更新必填自检：逐项检查 时间推进/波动归因/建筑功效/投入约束/支出口径/品质损耗/成员变动/口径一致/收支完整/百分比落地/闭环等式（11 项，每项一行结论）。
-Step7 输出确认：所有金额带单位币种、汇总=明细之和、百分比已转绝对值，输出 Ready。` : '';
+- 裁定：未触发（不足阈值且无重大事件）→ 执行门禁规则1)（只更新 ledgerTime，账目结算时间锁定不变，追加 [LedgerGap] 本轮未触发结算，沿用上次账目数据），直接输出，无需后续步骤；触发 → 执行门禁规则2) 进入 Step2。`;
+    const cotSection = settings().assetCOT !== false
+      ? (fullDetail
+          ? `【记账思考流程】（完整记账时按以下步数推进思考，不得减少或跳过；思考用 <thinking>...</thinking> 包裹，仅供人类查看）\n${step1Text}\nStep2 账本规则与逻辑：列出本轮构建账目必须遵守的至少 5 条规则与需自检的 3 个潜在矛盾。\nStep3 经济事件与传导：识别近期经济事件（饥荒/涨价/技术封锁/行业暴利等）对本地账目的传导渠道，思考在本期如何体现。\nStep4 账本更新前置：从【上次结构化账本摘要】的期末数据对齐本期期初（各实体资金/库存/币种余额），规划需要从近期对话与当前世界状态中检索的佐证点。\nStep5 收支计算预验证：以基准货币推演每笔收入（数量×单价，单价与行情一致）与支出（人员×薪资、建筑×维护），库存-资金联动校验（销售：库存减少×售价=收入；采购：库存增加×采购价=支出），多币种按汇率折算，汇兑损益计入非经营项。\nStep6 更新必填自检：逐项检查 时间推进/波动归因/建筑功效/投入约束/支出口径/品质损耗/成员变动/口径一致/收支完整/百分比落地/闭环等式（11 项，每项一行结论）。\nStep7 输出确认：所有金额带单位币种、汇总=明细之和、百分比已转绝对值，输出 Ready。`
+          : `【记账思考流程】（默认未触发结算；思考用 <thinking>...</thinking> 包裹）\n${step1Text}\n（若因重大结算事件裁定触发完整记账，再补做 Step2-7 的规则逻辑/经济传导/前置对齐/收支预验证/自检/输出确认。）`)
+      : '';
 
     // majorEvents 为 unshift 头部插入（newest-first），slice(0,3) 取最近三条
     const majorText = majorEvents.length
       ? majorEvents.filter(m => m && typeof m === 'object').slice(0, 3).map(m => `第${m.round}轮 ${m.title}：${m.desc || ''}`).join('\n')
       : '（暂无重大结算事件）';
+
+    // H2：上次结构化账本摘要回显（完整记账时才展示）——COT Step4/5 的期初对齐必须有数据依据，
+    // 否则模型只能从零编造 liquidAssets/closures。各字段截前 3 条 + 「共 N 条」。
+    const structSummaryText = (() => {
+      const summaryParts = [];
+      const structSummarySpec = [
+        ['externalFactors', 3], ['internalFactors', 3], ['liquidAssets', 3],
+        ['assetDistribution', 3], ['productionStats', 3], ['operations', 3], ['closures', 3]
+      ];
+      for (const [key, n] of structSummarySpec) {
+        const list = Array.isArray(assets[key]) ? assets[key] : [];
+        if (!list.length) continue;
+        const items = list.slice(0, n)
+          .map(x => {
+            if (!x || typeof x !== 'object') return '';
+            if (key === 'liquidAssets' || key === 'closures') {
+              return `${x.subject || x.currency || ''}：期初${x.opening ?? ''} +${x.inflow ?? ''} -${x.outflow ?? ''}${key === 'closures' && x.natural ? ' ±' + x.natural : ''}${x.exchange ? ' +汇兑' + x.exchange : ''} =${x.closing ?? ''}${x.pass ? '✓' : '✗'}`;
+            }
+            if (key === 'assetDistribution') {
+              return `${x.entity || ''}：${Array.isArray(x.buildings) ? x.buildings.join('、') : x.buildings || ''}${x.status ? '（' + x.status + '）' : ''}`;
+            }
+            if (key === 'productionStats') {
+              return `${x.entity || ''}·${x.building || ''}${x.status ? ' [' + x.status + ']' : ''}${x.output ? ' 产出:' + x.output : ''}${x.bottleneck ? ' 瓶颈:' + x.bottleneck : ''}`;
+            }
+            if (key === 'operations') {
+              return `${x.entity || ''}${x.income ? ' 收入:' + x.income : ''}${x.expense ? ' 支出:' + x.expense : ''}${x.net ? ' 净:' + x.net : ''}`;
+            }
+            return `${x.name || ''}：${x.desc || ''}`;
+          })
+          .filter(Boolean);
+        if (items.length) {
+          summaryParts.push(`- ${key}（共${list.length}条，展示最近${items.length}条）：${items.join('；')}`);
+        }
+      }
+      return summaryParts.length
+        ? `\n【上次结构化账本摘要】（本期期初依据，保持数据完整继承，不得凭空重编）\n${summaryParts.join('\n')}\n`
+        : '';
+    })();
 
     return `
 ========== 资产账本（记账员）==========
@@ -160,18 +216,18 @@ ${gateLines}
 - 更新账目时严禁简写省略历史信息；每一次更新必须完整继承上一版本的全部条目，数据演化清晰可溯。
 - entries 中每条 { category, name, amount, change, note }：amount 为当前数值，change 为本轮变化（如「+500两」「-3%」「持平」），note 为变化原因（可选）。
 
-【结构化账本字段】（完整记账时按需输出，均为可选数组；空数组/缺省=无变化）
-- externalFactors: 外在波动因子 [{ name, desc }]——世界层面的价格/政策/灾荒/行情波动对本账目的影响
-- internalFactors: 内生变化因子 [{ name, desc }]——本实体内部的结构变化（扩产/停工/人事/制度）
-- liquidAssets: 流动资产闭环 [{ currency, opening, inflow, outflow, exchange, closing, pass }]——多币种分别列，期初+流入-流出+汇兑=期末，pass 标 true/false
-- assetDistribution: 资产分布 [{ entity, buildings, status }]——实体×建筑树，出现过的建筑类型不得缺席（可停工）
-- productionStats: 生产效率 [{ entity, building, status, input, output, quality, bottleneck }]——每类建筑至少给 运行状态/投入/产出/品质损耗/瓶颈 中的 3 项
-- operations: 运营监控 [{ entity, income, expense, net, reason }]——每实体收入/支出明细（各至少 3 项，不足全列），净值可追溯，运转中无支出必须写原因
-- closures: 闭环等式 [{ subject, opening, inflow, outflow, natural, closing, pass }]——资金与至少两类关键库存（粮食/矿产）分别列闭环，期初+流入-流出±自然增减=期末，标 Pass/Fail，Fail 写「待补明细」
+【结构化账本字段】（完整记账时按需输出，均为可选数组；空数组/缺省=保持上次数据不变。⚠️ 键名必须原样使用下列英文名，不得改拼写/大小写/下划线，如「externalFactors」不能写成「external_factor」）
+- 「externalFactors」: 外在波动因子 [{ name, desc }]——世界层面的价格/政策/灾荒/行情波动对本账目的影响
+- 「internalFactors」: 内生变化因子 [{ name, desc }]——本实体内部的结构变化（扩产/停工/人事/制度）
+- 「liquidAssets」: 流动资产闭环 [{ currency, opening, inflow, outflow, exchange, closing, pass }]——多币种分别列，期初+流入-流出+汇兑=期末，pass 标 true（通过）/false（未通过）
+- 「assetDistribution」: 资产分布 [{ entity, buildings, status }]——实体×建筑树，出现过的建筑类型不得缺席（可停工）
+- 「productionStats」: 生产效率 [{ entity, building, status, input, output, quality, bottleneck }]——每类建筑至少给 运行状态/投入/产出/品质损耗/瓶颈 中的 3 项
+- 「operations」: 运营监控 [{ entity, income, expense, net, reason }]——每实体收入/支出明细（各至少 3 项，不足全列），净值可追溯，运转中无支出必须写原因
+- 「closures」: 闭环等式 [{ subject, opening, inflow, outflow, natural, closing, pass }]——资金与至少两类关键库存（粮食/矿产）分别列闭环，期初+流入-流出±自然增减=期末，pass 标 true（通过）/false（未通过），false 写「待补明细」
 ${qualityRules}${cotSection}
 【当前账目】
 ${entriesText}
-
+${fullDetail ? structSummaryText : ''}
 【最近重大结算事件】
 ${majorText}
 `;
@@ -322,26 +378,33 @@ ${majorText}
     }
 
     // ===== v5.7 结构化账本字段解析（完整结算时随 API 返回；防御式：非数组忽略，逐项 slice）=====
+    // M1：解析循环只在完整结算（fullySettled）时执行——门禁轮模型幻觉输出的结构化字段不得覆盖真实数据。
+    // S1：空数组（[]）不覆盖非空旧数据（prompt 语义「空数组/缺省=保持上次数据」），杜绝门禁轮/截断误清。
+    // H1：pass 归一化兼容 true/pass/是/1（大小写不敏感），防止 LLM 按中文或 Pass 措辞输出被误判 ✗。
     const structFields = {
       externalFactors:   { cap: 8,  map: x => ({ name: String(x.name || '').slice(0, 40), desc: String(x.desc || '').slice(0, 200) }) },
       internalFactors:   { cap: 8,  map: x => ({ name: String(x.name || '').slice(0, 40), desc: String(x.desc || '').slice(0, 200) }) },
-      liquidAssets:      { cap: 8,  map: x => ({ currency: String(x.currency || '').slice(0, 20), opening: String(x.opening ?? '').slice(0, 40), inflow: String(x.inflow ?? '').slice(0, 40), outflow: String(x.outflow ?? '').slice(0, 40), exchange: String(x.exchange ?? '').slice(0, 40), closing: String(x.closing ?? '').slice(0, 40), pass: x.pass === true || x.pass === 'true' }) },
+      liquidAssets:      { cap: 8,  map: x => ({ currency: String(x.currency || '').slice(0, 20), opening: String(x.opening ?? '').slice(0, 40), inflow: String(x.inflow ?? '').slice(0, 40), outflow: String(x.outflow ?? '').slice(0, 40), exchange: String(x.exchange ?? '').slice(0, 40), closing: String(x.closing ?? '').slice(0, 40), pass: isPassTrue(x.pass) }) },
       assetDistribution: { cap: 12, map: x => ({ entity: String(x.entity || '').slice(0, 40), buildings: Array.isArray(x.buildings) ? x.buildings.map(b => String(b).slice(0, 20)).slice(0, 12) : [], status: String(x.status || '').slice(0, 40) }) },
       productionStats:   { cap: 20, map: x => ({ entity: String(x.entity || '').slice(0, 40), building: String(x.building || '').slice(0, 40), status: String(x.status || '').slice(0, 40), input: String(x.input ?? '').slice(0, 60), output: String(x.output ?? '').slice(0, 60), quality: String(x.quality ?? '').slice(0, 40), bottleneck: String(x.bottleneck ?? '').slice(0, 60) }) },
       operations:        { cap: 12, map: x => ({ entity: String(x.entity || '').slice(0, 40), income: String(x.income ?? '').slice(0, 60), expense: String(x.expense ?? '').slice(0, 60), net: String(x.net ?? '').slice(0, 60), reason: String(x.reason || '').slice(0, 120) }) },
-      closures:          { cap: 8,  map: x => ({ subject: String(x.subject || '').slice(0, 40), opening: String(x.opening ?? '').slice(0, 40), inflow: String(x.inflow ?? '').slice(0, 40), outflow: String(x.outflow ?? '').slice(0, 40), natural: String(x.natural ?? '').slice(0, 40), closing: String(x.closing ?? '').slice(0, 40), pass: x.pass === true || x.pass === 'true' }) }
+      closures:          { cap: 8,  map: x => ({ subject: String(x.subject || '').slice(0, 40), opening: String(x.opening ?? '').slice(0, 40), inflow: String(x.inflow ?? '').slice(0, 40), outflow: String(x.outflow ?? '').slice(0, 40), natural: String(x.natural ?? '').slice(0, 40), closing: String(x.closing ?? '').slice(0, 40), pass: isPassTrue(x.pass) }) }
     };
-    for (const key of Object.keys(structFields)) {
-      const cfg = structFields[key];
-      if (!Array.isArray(incoming[key])) continue;
-      const parsed = incoming[key]
-        .filter(x => x && typeof x === 'object')
-        .map(cfg.map)
-        .slice(0, cfg.cap);
-      // 结构相同才替换（避免坏数据覆盖好数据）；有内容或清空（显式空数组=无变化）都算变更
-      if (JSON.stringify(parsed) !== JSON.stringify(assets[key] || [])) {
-        assets[key] = parsed;
-        changed = true;
+    if (fullySettled) {
+      for (const key of Object.keys(structFields)) {
+        const cfg = structFields[key];
+        if (!Array.isArray(incoming[key])) continue;
+        const parsed = incoming[key]
+          .filter(x => x && typeof x === 'object')
+          .map(cfg.map)
+          .slice(0, cfg.cap);
+        // S1：空数组不覆盖非空旧数据（保持上次数据）；旧数据为空时允许写入（包括显式清空）
+        if (parsed.length === 0 && (assets[key] || []).length > 0) continue;
+        // 结构相同才替换（避免坏数据覆盖好数据）
+        if (JSON.stringify(parsed) !== JSON.stringify(assets[key] || [])) {
+          assets[key] = parsed;
+          changed = true;
+        }
       }
     }
 

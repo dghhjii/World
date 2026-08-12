@@ -488,6 +488,60 @@ section('⑮ P0-1：mergeUpdate 解析 settledAt 写入 storyDay');
   t('真实 parseStoryDay 无时间设置：storyDay 保持 0', s.assets.ledgerTime.storyDay === 0);
 }
 
+section('⑯ 结构化账本字段解析（M4 缺口补测）');
+{
+  const env = makeEnv(makeSettings());
+  const A = env.sandbox.WORLD_ENGINE_ASSETS;
+  const core = env.sandbox.WORLD_ENGINE_CORE;
+  const s = defaultState(env.sandbox);
+  s.round = 1;
+
+  // 1) 正常解析：7 字段全部落盘
+  const upd = { assets: {
+    settledAt: '澳宋-1638年-09月-03日',
+    overview: { assets: 'x', distribution: 'y', production: 'z', funds: 'w' },
+    entries: [{ name: '博铺造船厂', category: '产业', amount: '1000两', change: '+100两' }],
+    externalFactors: [{ name: '海贸波动', desc: '南洋航线涨价' }],
+    internalFactors: [{ name: '扩建船坞', desc: '新增三号船坞' }],
+    liquidAssets: [{ currency: '白银', opening: '100', inflow: '50', outflow: '30', exchange: '0', closing: '120', pass: 'Pass' }],
+    assetDistribution: [{ entity: '博铺造船厂', buildings: ['一号船坞', '铁匠铺'], status: '运转' }],
+    productionStats: [{ entity: '博铺造船厂', building: '一号船坞', status: '运转', input: '木材', output: '新船', quality: '良', bottleneck: '缺铁' }],
+    operations: [{ entity: '博铺造船厂', income: '300', expense: '120', net: '+180', reason: '造船款' }],
+    closures: [{ subject: '流动资金', opening: '100', inflow: '50', outflow: '30', natural: '0', closing: '120', pass: 'TRUE' }]
+  }};
+  A.mergeUpdate(s, upd);
+  t('外部因子落盘', s.assets.externalFactors.length === 1 && s.assets.externalFactors[0].name === '海贸波动');
+  t('内部因子落盘', s.assets.internalFactors.length === 1);
+  t('流动资产落盘 + Pass 归一化', s.assets.liquidAssets.length === 1 && s.assets.liquidAssets[0].pass === true);
+  t('资产分布落盘（buildings 数组）', s.assets.assetDistribution.length === 1 && Array.isArray(s.assets.assetDistribution[0].buildings));
+  t('生产效率落盘', s.assets.productionStats.length === 1 && s.assets.productionStats[0].bottleneck === '缺铁');
+  t('运营监控落盘', s.assets.operations.length === 1);
+  t('闭环等式落盘 + TRUE 归一化', s.assets.closures.length === 1 && s.assets.closures[0].pass === true);
+
+  // 2) 门禁轮（仅 settledAt，无 overview/entries）：结构化字段不得被幻觉覆盖
+  s.round = 2;
+  A.mergeUpdate(s, { assets: { settledAt: '澳宋-1638年-09月-04日', externalFactors: [{ name: '幻觉因子', desc: '不应落盘' }] } });
+  t('门禁轮：结构化字段不被覆盖', s.assets.externalFactors.length === 1 && s.assets.externalFactors[0].name === '海贸波动');
+
+  // 3) 空数组不覆盖非空旧数据（S1）
+  s.round = 3;
+  A.mergeUpdate(s, { assets: { settledAt: '澳宋-1638年-09月-05日', overview: { assets: 'x2', distribution: 'y2', production: 'z2', funds: 'w2' }, entries: [{ name: '博铺造船厂', category: '产业', amount: '1100两', change: '+100两' }], externalFactors: [], closures: [] } });
+  t('空数组：外部因子保持上次', s.assets.externalFactors.length === 1);
+  t('空数组：闭环保持上次', s.assets.closures.length === 1);
+
+  // 4) pass 各种写法归一化
+  s.round = 4;
+  A.mergeUpdate(s, { assets: { settledAt: '澳宋-1638年-09月-06日', overview: { assets: 'x3', distribution: 'y3', production: 'z3', funds: 'w3' }, entries: [{ name: '博铺造船厂', category: '产业', amount: '1200两', change: '+100两' }], closures: [{ subject: '粮仓', opening: '1', inflow: '1', outflow: '1', natural: '1', closing: '2', pass: '是' }, { subject: '铁矿', opening: '1', inflow: '1', outflow: '1', natural: '1', closing: '2', pass: 1 }] } });
+  t('pass=是 → true', s.assets.closures[0].pass === true);
+  t('pass=1 → true', s.assets.closures[1].pass === true);
+
+  // 5) 坏数据：null 元素/超长/非数组 → 不抛错、防御裁剪
+  s.round = 5;
+  A.mergeUpdate(s, { assets: { settledAt: '澳宋-1638年-09月-07日', overview: { assets: 'x4', distribution: 'y4', production: 'z4', funds: 'w4' }, entries: [{ name: '博铺造船厂', category: '产业', amount: '1300两', change: '+100两' }], productionStats: [null, { entity: '很长的名字'.repeat(20), building: 'b', status: 's', input: 'i', output: 'o', quality: 'q', bottleneck: 'bt' }, '字符串垃圾'] } });
+  t('坏数据：null/字符串被过滤', s.assets.productionStats.length === 1);
+  t('坏数据：超长 entity 被裁剪', s.assets.productionStats[0].entity.length <= 40);
+}
+
 console.log('\n==========');
 console.log(`通过 ${passed} / ${passed + failed}`);
 process.exit(failed ? 1 : 0);

@@ -2669,7 +2669,7 @@ window.WORLD_ENGINE_UI = (function() {
     ];
     for (const [title, list, fmt] of structSections) {
       if (!Array.isArray(list) || !list.length) continue;
-      html += '<div class="we-assets-struct"><div class="we-assets-major-title">📋 ' + title + '</div>'
+      html += '<div class="we-assets-struct"><div class="we-assets-major-title">📋 ' + title + '（共' + list.length + '条）</div>'
         + list.slice(0, 8).map(x => '<div class="we-assets-struct-item">' + fmt(x) + '</div>').join('')
         + '</div>';
     }
