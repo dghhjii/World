@@ -3563,12 +3563,31 @@ window.WORLD_ENGINE_UI = (function() {
       + '<div class="we-prompt-seg-body" style="display:none;">' + rawBodyHtml + '</div>'
       + '</div>';
 
+    // 思维链卡：从 AI 返回中提取 <thinking>...</thinking> 段（模型按推演 prompt 的思考要求输出）
+    let thinkingText = '';
+    if (rawLen) {
+      const mThinking = rawResult.match(/<thinking>([\s\S]*?)<\/thinking>/i);
+      if (mThinking) thinkingText = mThinking[1].trim();
+    }
+    const thinkingBodyHtml = thinkingText
+      ? '<pre class="we-prompt-seg-pre we-thinking-pre">' + u(thinkingText) + '</pre>'
+      : '<div class="we-prompt-seg-empty">本轮无思维链（模型未输出 &lt;thinking&gt; 段，或使用旧版引擎角色指令）</div>';
+    const thinkingCard = '<div class="we-prompt-seg-card we-prompt-seg-card-thinking">'
+      + '<div class="we-prompt-seg-head" data-we-seg-toggle>'
+      + '<span class="we-prompt-seg-arrow">▶</span>'
+      + '<span class="we-prompt-seg-label">🧠 推演思维链</span>'
+      + '<span class="we-prompt-seg-meta">' + (thinkingText ? thinkingText.length + '字' : '无') + '</span>'
+      + '</div>'
+      + '<div class="we-prompt-seg-body" style="display:none;">' + thinkingBodyHtml + '</div>'
+      + '</div>';
+
     return ''
       + '<div class="we-prompt-debug">'
       + injectCard
       + '<div class="we-prompt-debug-summary">发送给推演 API 的 Prompt 共 ' + totalLen + ' 字，分 ' + segments.length + ' 段（只读展示，与实际发出字节一致）</div>'
       + barHtml
       + '<div class="we-prompt-seg-list">' + segments.map((seg, i) => segCard(i, seg)).join('') + '</div>'
+      + thinkingCard
       + rawCard
       + '<div style="display:flex;gap:6px;margin-top:8px;">'
       + '<button class="we-btn" id="we-export-prompt" style="flex:1;">导出完整 Prompt</button>'
