@@ -211,6 +211,19 @@ window.WORLD_ENGINE_API = (function() {
     return error;
   }
 
+  function classifyError(error) {
+    const status = Number(error?.status);
+    const message = String(error?.message || error).toLowerCase();
+    if (status >= 400 && status < 500) return { retryable: false, category: 'client_error' };
+    if (message.includes('不是有效 json') || message.includes('unexpected token')) 
+      return { retryable: false, category: 'parse_error' };
+    if (message.includes('返回缺少') || message.includes('必须返回') || message.includes('任务返回缺少'))
+      return { retryable: false, category: 'schema_error' };
+    if (status >= 500 || message.includes('超时') || message.includes('network') || message.includes('fetch'))
+      return { retryable: true, category: 'network_error' };
+    return { retryable: false, category: 'unknown' };
+  }
+
   function requireJson(result, label) {
     if (result.parseError) {
       throw apiError((label || 'API') + ' 返回不是有效 JSON：' + result.parseError.message, result, result.resp?.status);
@@ -468,5 +481,5 @@ window.WORLD_ENGINE_API = (function() {
     throw new Error('无法解析模型列表');
   }
 
-  return { callApi, parseJSON, getSettings, fetchModelList };
+  return { callApi, parseJSON, getSettings, fetchModelList, classifyError };
 })();

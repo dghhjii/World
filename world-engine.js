@@ -39,7 +39,8 @@
     'world-engine-chatcache.js',
     'world-engine-inject-inspector.js',
     'world-engine-assets.js',
-    'world-engine-offsight.js'
+    'world-engine-offsight.js',
+    'memory-engine-protocol.js'
   ];
   const SHARED_CONTRACTS = {
     WORLD_ENGINE_STORE: ['hydrate', 'getItem', 'setItem'],

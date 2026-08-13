@@ -248,6 +248,15 @@ window.MEMORY_ENGINE = (function() {
   }
 
   function parseResponse(raw, tasks) {
+    if (window.MEMORY_ENGINE_PROTOCOL?.parse) {
+      try {
+        return window.MEMORY_ENGINE_PROTOCOL.parse(raw, tasks);
+      } catch (protocolError) {
+        lastDebug.protocolError = String(protocolError?.message || protocolError);
+        if (protocolError?.category) lastDebug.errorCategory = protocolError.category;
+        throw protocolError;
+      }
+    }
     const text = clean(raw).replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '');
     // 部分兼容 API 会把上游失败包装进 message.content，返回「[API错误]...」纯文本。
     // 这类文本不是模型 JSON，必须在兜底片段解析前保留真实原因，不能让 JSON.parse 把它改写成 Unexpected token。
@@ -866,7 +875,9 @@ window.MEMORY_ENGINE = (function() {
           lastDebug.rawResult = lastDebug.apiResponse = error.rawResponse;
         }
         if (Number.isFinite(Number(error?.status))) lastDebug.status = Number(error.status);
-        if (abortController?.signal?.aborted || attempt >= retries) throw error;
+        const classification = window.WORLD_ENGINE_API?.classifyError?.(error) || { retryable: false, category: 'unknown' };
+        lastDebug.errorCategory = classification.category;
+        if (!classification.retryable || abortController?.signal?.aborted || attempt >= retries) throw error;
       }
     }
     throw new Error('记忆 API 请求失败');

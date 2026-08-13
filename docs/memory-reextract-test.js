@@ -186,7 +186,7 @@ function seedState() {
       && /网关返回纯文本错误/.test(error?.message),
     '普通非 JSON 返回必须保留原始返回预览'
   );
-  assert.strictEqual(malformedCalls, 4, 'JSON 无法修补属于 fault，应按配置额外重试 3 次');
+  assert.strictEqual(malformedCalls, 1, '解析错误不可重试，应只调用一次');
 
   assert.throws(
     () => sandbox.MEMORY_ENGINE._test.parseResponse('{}', { memory: true }),
