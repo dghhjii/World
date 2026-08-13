@@ -249,6 +249,13 @@ window.MEMORY_ENGINE = (function() {
 
   function parseResponse(raw, tasks) {
     const text = clean(raw).replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '');
+    // 部分兼容 API 会把上游失败包装进 message.content，返回「[API错误]...」纯文本。
+    // 这类文本不是模型 JSON，必须在兜底片段解析前保留真实原因，不能让 JSON.parse 把它改写成 Unexpected token。
+    const upstreamError = /^\[API错误\]\s*(.*)$/is.exec(text);
+    if (upstreamError) {
+      const detail = clean(upstreamError[1]);
+      throw new Error(`上游 API 返回错误${detail ? `：${detail}` : ''}`);
+    }
     let value;
     try { value = JSON.parse(text); }
     catch (_) {

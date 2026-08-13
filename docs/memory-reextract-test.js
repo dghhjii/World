@@ -183,6 +183,18 @@ function seedState() {
   };
   await assert.rejects(sandbox.MEMORY_ENGINE.manualReextract(), /没有合法 JSON/);
   assert.strictEqual(malformedCalls, 4, 'JSON 无法修补属于 fault，应按配置额外重试 3 次');
+
+  seedState();
+  settings.apiAutoRetries = 0;
+  sandbox.WORLD_ENGINE_API.callApi = async () =>
+    '[API错误] 上游服务暂时不可用（HTTP 502）';
+  await assert.rejects(
+    sandbox.MEMORY_ENGINE.manualReextract(),
+    error => /上游 API 返回错误/.test(error?.message)
+      && /HTTP 502/.test(error?.message)
+      && !/Unexpected token/.test(error?.message),
+    'API 错误文本必须作为上游错误报告，不能继续交给 JSON.parse'
+  );
   console.log('memory reextract tests passed');
 })().catch(error => {
   console.error(error);
