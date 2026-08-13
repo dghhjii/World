@@ -285,6 +285,26 @@ window.MEMORY_ENGINE = (function() {
         throw new Error(`API 返回中没有合法 JSON 对象或数组${preview ? `；原始返回：${preview}` : ''}`);
       }
     }
+    if (!value || (typeof value !== 'object')) {
+      throw new Error('API 返回 JSON 不是对象或数组');
+    }
+    if (!Array.isArray(value)) {
+      const apiError = clean(value.error || value.message);
+      if (apiError && (value.error !== undefined || value.code !== undefined || value.status !== undefined)) {
+        throw new Error(`上游 API 返回错误：${apiError}`);
+      }
+      if (tasks.memory && (!Array.isArray(value.personal_memory) || !Array.isArray(value.entity_updates))) {
+        throw new Error('记忆任务返回缺少 personal_memory 或 entity_updates 数组');
+      }
+      if (tasks.small && (!Object.hasOwn(value, 'small_summary') || !clean(value.small_summary))) {
+        throw new Error('纪要任务返回缺少非空 small_summary');
+      }
+      if (tasks.big && (!Object.hasOwn(value, 'big_summary') || !clean(value.big_summary))) {
+        throw new Error('总述任务返回缺少非空 big_summary');
+      }
+    } else if (!tasks.memory) {
+      throw new Error('当前任务必须返回 JSON 对象');
+    }
     const nameBlacklist = configuredNameBlacklist(settings());
     // 兼容 0.1.x：旧 API 只返回人物记忆数组。
     const personalValue = tasks.memory ? (Array.isArray(value)
@@ -842,6 +862,10 @@ window.MEMORY_ENGINE = (function() {
         return parsed;
       } catch (error) {
         lastDebug.error = String(error?.message || error);
+        if (typeof error?.rawResponse === 'string') {
+          lastDebug.rawResult = lastDebug.apiResponse = error.rawResponse;
+        }
+        if (Number.isFinite(Number(error?.status))) lastDebug.status = Number(error.status);
         if (abortController?.signal?.aborted || attempt >= retries) throw error;
       }
     }

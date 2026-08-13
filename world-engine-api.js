@@ -204,9 +204,16 @@ window.WORLD_ENGINE_API = (function() {
     return text ? String(text).slice(0, 500) : '';
   }
 
+  function apiError(message, result, status) {
+    const error = new Error(message);
+    if (result && typeof result.text === 'string') error.rawResponse = result.text;
+    if (Number.isFinite(Number(status))) error.status = Number(status);
+    return error;
+  }
+
   function requireJson(result, label) {
     if (result.parseError) {
-      throw new Error((label || 'API') + ' 返回不是有效 JSON：' + result.parseError.message);
+      throw apiError((label || 'API') + ' 返回不是有效 JSON：' + result.parseError.message, result, result.resp?.status);
     }
     return result.data || {};
   }
@@ -261,18 +268,20 @@ window.WORLD_ENGINE_API = (function() {
     }, signal, settings.apiTimeoutMs);
     const resp = result.resp;
     if (!resp.ok) {
-      throw new Error(`HTTP ${resp.status}: ${responseDetail(result)}`);
+      throw apiError(`HTTP ${resp.status}: ${responseDetail(result)}`, result, resp.status);
     }
     const data = requireJson(result, '酒馆代理');
     if (data && data.error) {
-      throw new Error('酒馆代理返回错误：' + (data.error.message || JSON.stringify(data.error)));
+      throw apiError('酒馆代理返回错误：' + (data.error.message || JSON.stringify(data.error)), result, resp.status);
     }
     const choice = data.choices?.[0];
-    if (!choice) throw new Error('API 返回缺少 choices[0]');
+    if (!choice) throw apiError('API 返回缺少 choices[0]', result, resp.status);
     if (choice.finish_reason === 'length') {
       console.warn('[世界引擎] API 输出达到长度上限，将读取截断前已完整返回的字段');
     }
-    return choice.message?.content || '';
+    const content = choice.message?.content;
+    if (typeof content !== 'string') throw apiError('API 返回缺少 choices[0].message.content', result, resp.status);
+    return content;
   }
 
   /**
@@ -319,7 +328,7 @@ window.WORLD_ENGINE_API = (function() {
     const resp = result.resp;
 
     if (!resp.ok) {
-      throw new Error(`HTTP ${resp.status}: ${responseDetail(result)}`);
+      throw apiError(`HTTP ${resp.status}: ${responseDetail(result)}`, result, resp.status);
     }
 
     const data = requireJson(result, 'API');
@@ -328,7 +337,9 @@ window.WORLD_ENGINE_API = (function() {
     if (choice.finish_reason === 'length') {
       console.warn('[世界引擎] API 输出达到长度上限，将读取截断前已完整返回的字段');
     }
-    return choice.message?.content || '';
+    const content = choice.message?.content;
+    if (typeof content !== 'string') throw apiError('API 返回缺少 choices[0].message.content', result, resp.status);
+    return content;
   }
 
   function repairTruncatedJSON(content) {

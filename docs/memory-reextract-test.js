@@ -188,6 +188,39 @@ function seedState() {
   );
   assert.strictEqual(malformedCalls, 4, 'JSON 无法修补属于 fault，应按配置额外重试 3 次');
 
+  assert.throws(
+    () => sandbox.MEMORY_ENGINE._test.parseResponse('{}', { memory: true }),
+    /记忆任务返回缺少 personal_memory 或 entity_updates/
+  );
+  assert.throws(
+    () => sandbox.MEMORY_ENGINE._test.parseResponse('{"error":"模型不存在","code":404}', { memory: true }),
+    /上游 API 返回错误.*模型不存在/
+  );
+
+  seedState();
+  settings.apiAutoRetries = 0;
+  sandbox.WORLD_ENGINE_API.callApi = async () => {
+    const error = new Error('HTTP 502');
+    error.rawResponse = '{"error":"上游模型不可用"}';
+    error.status = 502;
+    throw error;
+  };
+  await assert.rejects(sandbox.MEMORY_ENGINE.manualReextract(), /HTTP 502/);
+  const failedDebug = sandbox.MEMORY_ENGINE.getLastDebug();
+  assert.strictEqual(failedDebug.rawResult, '{"error":"上游模型不可用"}', 'API 层错误响应必须进入记忆调试记录');
+  assert.strictEqual(failedDebug.status, 502, 'API 层 HTTP 状态必须进入记忆调试记录');
+
+  seedState();
+  const beforeRejectedCount = sandbox.MEMORY_ENGINE_DATA.loadState().timeline.nodes
+    .filter(node => node.status === 'valid' && node.kind === 'memory').length;
+  settings.apiAutoRetries = 0;
+  sandbox.WORLD_ENGINE_API.callApi = async () =>
+    JSON.stringify({ personal_memory: [], entity_updates: [] });
+  await assert.rejects(sandbox.MEMORY_ENGINE.manualReextract(), /纪要/);
+  const rejectedState = sandbox.MEMORY_ENGINE_DATA.loadState();
+  assert.strictEqual(rejectedState.timeline.nodes.filter(node => node.status === 'valid' && node.kind === 'memory').length, beforeRejectedCount,
+    '人物/实体成功但纪要字段缺失时不得推进记忆链');
+
   seedState();
   settings.apiAutoRetries = 0;
   sandbox.WORLD_ENGINE_API.callApi = async () =>

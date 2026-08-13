@@ -967,6 +967,7 @@ window.WORLD_ENGINE_UI = (function() {
     const apiResult = typeof dbg?.rawResult === 'string' ? dbg.rawResult
       : (typeof dbg?.apiResponse === 'string' ? dbg.apiResponse
         : (typeof dbg?.response === 'string' ? dbg.response : ''));
+    const apiError = typeof dbg?.error === 'string' ? dbg.error : '';
     const card = (title, meta, content, emptyText) => {
       const hasContent = content !== null && content !== undefined && content !== '';
       const shown = typeof content === 'string' ? content : (hasContent ? JSON.stringify(content, null, 2) : '');
@@ -984,7 +985,8 @@ window.WORLD_ENGINE_UI = (function() {
       + '<div class="we-prompt-debug-summary">只显示最近一次实际运行记录；内置记忆 Prompt 不在设置中展示，也不开放修改。</div>'
       + renderInjectInspector('memory')
       + card('发送给记忆后台 API 的实际 Prompt', sentPrompt ? sentPrompt.length + '字' : '暂无', sentPrompt, '执行人物实体与纪要提取或生成总述后，显示本次真正发送的完整 Prompt。')
-      + card('记忆后台 API 原始返回', apiResult ? apiResult.length + '字' : '暂无', apiResult, '执行记忆提取后显示后台 API 的原始返回。')
+      + card('本次记忆请求错误', apiError ? ((Number.isFinite(Number(dbg?.status)) ? 'HTTP ' + Number(dbg.status) + ' · ' : '') + apiError.length + '字') : '无', apiError, '最近一次请求未发生错误。HTTP、代理、配置和解析错误都会保留在这里。')
+      + card('记忆后台 API 原始返回', apiResult ? apiResult.length + '字' : '暂无', apiResult, '执行记忆提取后显示后台 API 的原始返回；HTTP/代理错误的响应体也会保留。')
       + '<div style="display:flex;gap:6px;margin-top:8px;"><button class="we-btn" id="we-memory-export-prompt" style="flex:1;">导出完整 Prompt</button><button class="we-btn" id="we-memory-export-raw-result" style="flex:1;">导出 API 返回</button></div>'
       + '</div>';
   }
@@ -1167,7 +1169,7 @@ window.WORLD_ENGINE_UI = (function() {
     const summaryBackfillSmallEveryX = Math.max(1, parseInt(settings.summaryBackfillSmallEveryX) || 5);
     const summaryBackfillBigEveryX = Math.max(1, parseInt(settings.summaryBackfillBigEveryX) || 5);
     const apiTemperature = Number.isFinite(Number(settings.temperature)) ? Math.max(0, Number(settings.temperature)) : 0.2;
-    const apiMaxTokens = Math.max(1, parseInt(settings.maxTokens) || 65000);
+    const apiMaxTokens = Math.max(1, parseInt(settings.maxTokens) || 8192);
     const apiTimeoutSec = Math.max(0, Math.round((Number(settings.apiTimeoutMs) || 120000) / 1000));
 
     const apiBody = `
@@ -6478,6 +6480,7 @@ window.WORLD_ENGINE_UI = (function() {
       showToast(`记忆提取完成，写入或更新 ${result?.added || 0} 项`);
       return result;
     } catch (error) {
+      refreshMemoryDebugRender();
       showToast(`记忆提取失败：${error?.message || error}`, true);
     }
   }
@@ -6487,7 +6490,10 @@ window.WORLD_ENGINE_UI = (function() {
     try {
       const result = await window.MEMORY_ENGINE.manualReextract();
       showToast(`记忆重新推演完成，写入或更新 ${result?.added ?? '未知'} 项`);
-    } catch (error) { showToast(`记忆重新推演失败：${error?.message || error}`, true); }
+    } catch (error) {
+      refreshMemoryDebugRender();
+      showToast(`记忆重新推演失败：${error?.message || error}`, true);
+    }
   }
 
   // 批量「重填世界推演」：清空当前世界状态，从第 1 个 AI 楼层分批推到指定楼层。
