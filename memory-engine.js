@@ -257,14 +257,33 @@ window.MEMORY_ENGINE = (function() {
       throw new Error(`上游 API 返回错误${detail ? `：${detail}` : ''}`);
     }
     let value;
-    try { value = JSON.parse(text); }
-    catch (_) {
+    try {
+      value = JSON.parse(text);
+    } catch (_) {
       const objectStart = text.indexOf('{'), objectEnd = text.lastIndexOf('}');
       const arrayStart = text.indexOf('['), arrayEnd = text.lastIndexOf(']');
-      if (arrayStart >= 0 && arrayStart < objectStart && arrayEnd > arrayStart) value = JSON.parse(text.slice(arrayStart, arrayEnd + 1));
-      else if (objectStart >= 0 && objectEnd > objectStart) value = JSON.parse(text.slice(objectStart, objectEnd + 1));
-      else if (arrayStart >= 0 && arrayEnd > arrayStart) value = JSON.parse(text.slice(arrayStart, arrayEnd + 1));
-      else throw new Error('API 返回中没有合法 JSON 对象或数组');
+      const candidates = [];
+      if (arrayStart >= 0 && arrayStart < objectStart && arrayEnd > arrayStart) {
+        candidates.push(text.slice(arrayStart, arrayEnd + 1));
+      }
+      if (objectStart >= 0 && objectEnd > objectStart) {
+        candidates.push(text.slice(objectStart, objectEnd + 1));
+      }
+      if (arrayStart >= 0 && arrayEnd > arrayStart && !candidates.length) {
+        candidates.push(text.slice(arrayStart, arrayEnd + 1));
+      }
+      let recovered = false;
+      for (const candidate of candidates) {
+        try {
+          value = JSON.parse(candidate);
+          recovered = true;
+          break;
+        } catch (_) {}
+      }
+      if (!recovered) {
+        const preview = text.replace(/\\s+/g, ' ').slice(0, 500);
+        throw new Error(`API 返回中没有合法 JSON 对象或数组${preview ? `；原始返回：${preview}` : ''}`);
+      }
     }
     const nameBlacklist = configuredNameBlacklist(settings());
     // 兼容 0.1.x：旧 API 只返回人物记忆数组。

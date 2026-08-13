@@ -179,9 +179,13 @@ function seedState() {
   let malformedCalls = 0;
   sandbox.WORLD_ENGINE_API.callApi = async () => {
     malformedCalls++;
-    return '这不是可解析的 JSON';
+    return '网关返回纯文本错误';
   };
-  await assert.rejects(sandbox.MEMORY_ENGINE.manualReextract(), /没有合法 JSON/);
+  await assert.rejects(sandbox.MEMORY_ENGINE.manualReextract(), error =>
+    /没有合法 JSON/.test(error?.message)
+      && /网关返回纯文本错误/.test(error?.message),
+    '普通非 JSON 返回必须保留原始返回预览'
+  );
   assert.strictEqual(malformedCalls, 4, 'JSON 无法修补属于 fault，应按配置额外重试 3 次');
 
   seedState();
