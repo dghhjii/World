@@ -5,10 +5,10 @@ window.MEMORY_ENGINE_SETTINGS = (function() {
   const DEFAULTS = Object.freeze({
     apiUrl: '',
     apiKey: '',
-    model: 'gpt-3.5-turbo',
+    model: 'deepseek-v4-flash',
     connectionMode: 'direct',
     temperature: 0.2,
-    maxTokens: 65000,
+    maxTokens: 8192,
     apiTimeoutMs: 120000,
     engineEnabled: true,
     firstLayerIsAiOpening: true,
@@ -51,11 +51,16 @@ window.MEMORY_ENGINE_SETTINGS = (function() {
   // 这里同时覆盖旧存档和 UI 传入值，避免历史设置中的 X 继续生效。
   function normalizeSettings(value) {
     const merged = { ...DEFAULTS, ...(value || {}) };
-    const savedMaxTokens = Math.max(1, parseInt(merged.maxTokens) || 65000);
+    const savedModel = String(merged.model || '').trim();
+    const isOpenCode = /opencode\.ai/i.test(String(merged.apiUrl || ''));
+    const normalizedModel = isOpenCode && (!savedModel || savedModel === 'gpt-3.5-turbo')
+      ? 'deepseek-v4-flash' : (savedModel || 'deepseek-v4-flash');
+    const savedMaxTokens = Math.max(1, parseInt(merged.maxTokens) || 8192);
     return {
       ...merged,
-      // 旧版部分预设把输出上限保存成 4096；升级后自动迁移，避免继续截断 API 返回。
-      maxTokens: savedMaxTokens === 4096 ? 65000 : savedMaxTokens,
+      model: normalizedModel,
+      // 记忆任务只返回短 JSON；旧版的 4096/65000 都是历史默认值，不应继续放大上游排队和上下文预算。
+      maxTokens: savedMaxTokens === 4096 || savedMaxTokens === 65000 ? 8192 : savedMaxTokens,
       evolveEveryX: 1,
       evolveReadRounds: 1,
       manualReadRounds: 1,

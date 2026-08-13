@@ -1189,7 +1189,7 @@ window.WORLD_ENGINE_UI = (function() {
       <div class="we-input-group" style="display:flex;gap:6px;align-items:end;">
         <div style="flex:1;">
           <label>模型</label>
-          <input type="text" id="we-model" value="${u(settings.model || 'gpt-3.5-turbo')}" placeholder="模型名称" style="width:100%;">
+          <input type="text" id="we-model" value="${u(settings.model || 'deepseek-v4-flash')}" placeholder="模型名称" style="width:100%;">
         </div>
         <button class="we-btn" id="we-fetch-models" style="white-space:nowrap;flex-shrink:0;" title="先保存当前表单，再请求模型列表验证连接">获取列表 / 测试连接</button>
       </div>
@@ -5195,9 +5195,9 @@ window.WORLD_ENGINE_UI = (function() {
           firstLayerIsAiOpening: document.getElementById('we-memory-first-layer-ai-opening')?.checked !== false,
           apiUrl: gv('we-api-url') || '',
           apiKey: gv('we-api-key') || '',
-          model: gv('we-model') || 'gpt-3.5-turbo',
+          model: gv('we-model') || 'deepseek-v4-flash',
           temperature: Number.isFinite(temperatureRaw) ? Math.max(0, temperatureRaw) : 0.2,
-          maxTokens: Math.max(1, parseInt(gv('we-max-tokens')) || 65000),
+          maxTokens: Math.max(1, parseInt(gv('we-max-tokens')) || 8192),
           apiTimeoutMs: Number.isFinite(timeoutSecRaw) ? Math.max(0, Math.round(timeoutSecRaw * 1000)) : 120000,
           connectionMode: document.getElementById('we-connection-mode')?.value === 'proxy' ? 'proxy' : 'direct',
           evolveMode: gv('we-memory-evolve-mode') === 'manual' ? 'manual' : 'auto',
